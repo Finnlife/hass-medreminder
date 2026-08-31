@@ -79,6 +79,13 @@ class FrontendContractTests(unittest.TestCase):
         ]
         self.assertNotIn("this.render();", show_toast)
 
+    def test_render_reuses_the_live_modal_dom_and_focus(self) -> None:
+        panel = PANEL.read_text(encoding="utf-8")
+        self.assertIn("this.renderedModal === this.modal", panel)
+        self.assertIn(".replaceWith(preservedModal)", panel)
+        self.assertIn("activeControl.focus({ preventScroll: true })", panel)
+        self.assertIn("activeControl.setSelectionRange(...selection)", panel)
+
     def test_delete_all_requires_explicit_confirmation(self) -> None:
         panel = PANEL.read_text(encoding="utf-8")
         backend = WEBSOCKET.read_text(encoding="utf-8")

@@ -13,6 +13,7 @@ class MedicationReminderPanel extends HTMLElement {
     this.state = null;
     this.activeTab = "overview";
     this.modal = null;
+    this.renderedModal = null;
     this.loading = false;
     this.lastLoad = 0;
     this.toast = null;
@@ -185,10 +186,30 @@ class MedicationReminderPanel extends HTMLElement {
   }
 
   render() {
+    const preservedModal = this.modal && this.renderedModal === this.modal
+      ? this.shadowRoot.querySelector(".modal-backdrop")
+      : null;
+    const activeControl = preservedModal?.contains(this.shadowRoot.activeElement)
+      ? this.shadowRoot.activeElement
+      : null;
+    let selection = null;
+    try {
+      if (activeControl && typeof activeControl.selectionStart === "number") {
+        selection = [activeControl.selectionStart, activeControl.selectionEnd, activeControl.selectionDirection];
+      }
+    } catch (error) { selection = null; }
     const content = !this.state
       ? `<div class="loading"><div class="loader"></div><h2>${this.t("app.loading_title")}</h2><p>${this.t("app.loading_text")}</p></div>`
       : this.renderContent();
     this.shadowRoot.innerHTML = `<style>${this.styles()}</style>${content}${this.renderModal()}${this.renderToast()}`;
+    if (preservedModal && this.modal) {
+      this.shadowRoot.querySelector(".modal-backdrop")?.replaceWith(preservedModal);
+      if (activeControl) {
+        activeControl.focus({ preventScroll: true });
+        if (selection && typeof activeControl.setSelectionRange === "function") activeControl.setSelectionRange(...selection);
+      }
+    }
+    this.renderedModal = this.modal;
   }
 
   renderContent() {
