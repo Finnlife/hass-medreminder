@@ -1,0 +1,13 @@
+services:
+  homeassistant:
+    container_name: hass-medreminder-test
+    image: ghcr.io/home-assistant/home-assistant:stable
+    restart: unless-stopped
+    privileged: true
+    environment:
+      TZ: Europe/Berlin
+    volumes:
+      - ./.ha-test:/config
+      - ./custom_components/medication_reminder:/config/custom_components/medication_reminder:ro
+    ports:
+      - "8123:8123"

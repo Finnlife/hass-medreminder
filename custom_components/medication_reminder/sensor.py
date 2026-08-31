@@ -45,7 +45,7 @@ async def async_setup_entry(
 class MedicationStockSensor(MedicationEntity, SensorEntity):
     """Current stock for one medication."""
 
-    _attr_name = "Bestand"
+    _attr_translation_key = "stock"
     _attr_icon = "mdi:counter"
 
     def __init__(self, manager: MedicationManager, medication_id: str) -> None:
@@ -75,7 +75,7 @@ class MedicationStockSensor(MedicationEntity, SensorEntity):
 class NextIntakeSensor(MedicationReminderEntity, SensorEntity):
     """Timestamp of the next scheduled intake."""
 
-    _attr_name = "Nächste Einnahme"
+    _attr_translation_key = "next_intake"
     _attr_icon = "mdi:clock-outline"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
@@ -109,9 +109,8 @@ class NextIntakeSensor(MedicationReminderEntity, SensorEntity):
 class PendingIntakesSensor(MedicationReminderEntity, SensorEntity):
     """Count of pending or partially completed intake tickets."""
 
-    _attr_name = "Offene Einnahmen"
+    _attr_translation_key = "pending_intakes"
     _attr_icon = "mdi:clipboard-clock-outline"
-    _attr_native_unit_of_measurement = "Einnahmen"
 
     def __init__(self, manager: MedicationManager) -> None:
         super().__init__(manager, "pending_intakes")
@@ -138,7 +137,7 @@ class PendingIntakesSensor(MedicationReminderEntity, SensorEntity):
 class LastIntakeSensor(MedicationReminderEntity, SensorEntity):
     """Timestamp of the latest completed intake."""
 
-    _attr_name = "Letzte Einnahme"
+    _attr_translation_key = "last_intake"
     _attr_icon = "mdi:history"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
@@ -154,4 +153,3 @@ class LastIntakeSensor(MedicationReminderEntity, SensorEntity):
             if item["status"] == "taken" and item.get("taken_at")
         ]
         return max(values) if values else None
-

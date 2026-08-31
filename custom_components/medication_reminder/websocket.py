@@ -64,17 +64,24 @@ async def ws_save_medication(hass, connection, msg) -> None:
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): f"{DOMAIN}/delete_medication", vol.Required("id"): str}
+    {
+        vol.Required("type"): f"{DOMAIN}/delete_medication",
+        vol.Required("medication_id"): str,
+    }
 )
 @websocket_api.async_response
 async def ws_delete_medication(hass, connection, msg) -> None:
-    await _respond(connection, msg, lambda: _manager(hass).async_delete_medication(msg["id"]))
+    await _respond(
+        connection,
+        msg,
+        lambda: _manager(hass).async_delete_medication(msg["medication_id"]),
+    )
 
 
 @websocket_api.websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/adjust_stock",
-        vol.Required("id"): str,
+        vol.Required("medication_id"): str,
         vol.Required("delta"): vol.Coerce(float),
     }
 )
@@ -83,7 +90,9 @@ async def ws_adjust_stock(hass, connection, msg) -> None:
     await _respond(
         connection,
         msg,
-        lambda: _manager(hass).async_adjust_stock(msg["id"], msg["delta"]),
+        lambda: _manager(hass).async_adjust_stock(
+            msg["medication_id"], msg["delta"]
+        ),
     )
 
 
@@ -96,17 +105,24 @@ async def ws_save_regimen(hass, connection, msg) -> None:
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): f"{DOMAIN}/delete_regimen", vol.Required("id"): str}
+    {
+        vol.Required("type"): f"{DOMAIN}/delete_regimen",
+        vol.Required("regimen_id"): str,
+    }
 )
 @websocket_api.async_response
 async def ws_delete_regimen(hass, connection, msg) -> None:
-    await _respond(connection, msg, lambda: _manager(hass).async_delete_regimen(msg["id"]))
+    await _respond(
+        connection,
+        msg,
+        lambda: _manager(hass).async_delete_regimen(msg["regimen_id"]),
+    )
 
 
 @websocket_api.websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/record_intake",
-        vol.Required("id"): str,
+        vol.Required("occurrence_id"): str,
         vol.Optional("doses"): {str: vol.Coerce(float)},
     }
 )
@@ -116,7 +132,7 @@ async def ws_record_intake(hass, connection, msg) -> None:
         connection,
         msg,
         lambda: _manager(hass).async_record_intake(
-            msg["id"], msg.get("doses"), connection.user.id
+            msg["occurrence_id"], msg.get("doses"), connection.user.id
         ),
     )
 
@@ -124,7 +140,7 @@ async def ws_record_intake(hass, connection, msg) -> None:
 @websocket_api.websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/snooze",
-        vol.Required("id"): str,
+        vol.Required("occurrence_id"): str,
         vol.Exclusive("minutes", "snooze_target"): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=10080)
         ),
@@ -141,16 +157,25 @@ async def ws_snooze(hass, connection, msg) -> None:
     if until is None:
         connection.send_error(msg["id"], "invalid_request", "Invalid snooze time")
         return
-    await _respond(connection, msg, lambda: _manager(hass).async_snooze(msg["id"], until))
+    await _respond(
+        connection,
+        msg,
+        lambda: _manager(hass).async_snooze(msg["occurrence_id"], until),
+    )
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): f"{DOMAIN}/skip", vol.Required("id"): str}
+    {
+        vol.Required("type"): f"{DOMAIN}/skip",
+        vol.Required("occurrence_id"): str,
+    }
 )
 @websocket_api.async_response
 async def ws_skip(hass, connection, msg) -> None:
     await _respond(
         connection,
         msg,
-        lambda: _manager(hass).async_skip(msg["id"], connection.user.id),
+        lambda: _manager(hass).async_skip(
+            msg["occurrence_id"], connection.user.id
+        ),
     )

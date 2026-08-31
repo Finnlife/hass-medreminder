@@ -1,0 +1,75 @@
+{
+  "title": "Medication Reminder",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up medication schedule",
+        "description": "Creates local medication management and the sidebar entry. All data remains in Home Assistant."
+      }
+    },
+    "abort": {
+      "already_configured": "Medication Reminder is already configured."
+    }
+  },
+  "device": {
+    "medication_schedule": {
+      "name": "Medication schedule"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "stock": { "name": "Stock" },
+      "next_intake": { "name": "Next intake" },
+      "pending_intakes": { "name": "Pending intakes" },
+      "last_intake": { "name": "Last intake" }
+    },
+    "binary_sensor": {
+      "low_stock": { "name": "Low stock" },
+      "overdue_intakes": { "name": "Overdue intakes" }
+    }
+  },
+  "services": {
+    "record_intake": {
+      "name": "Record intake",
+      "description": "Records a complete or partial medication intake.",
+      "fields": {
+        "occurrence_id": {
+          "name": "Occurrence ID",
+          "description": "ID of the due intake occurrence."
+        },
+        "doses": {
+          "name": "Doses",
+          "description": "Optional mapping of medication IDs to amounts actually taken."
+        }
+      }
+    },
+    "snooze": {
+      "name": "Snooze reminder",
+      "description": "Postpones an open reminder.",
+      "fields": {
+        "occurrence_id": {
+          "name": "Occurrence ID",
+          "description": "ID of the open intake occurrence."
+        },
+        "minutes": {
+          "name": "Minutes",
+          "description": "Number of minutes to postpone the reminder."
+        }
+      }
+    },
+    "adjust_stock": {
+      "name": "Adjust stock",
+      "description": "Adds a positive or negative amount to a medication's stock.",
+      "fields": {
+        "medication_id": {
+          "name": "Medication ID",
+          "description": "ID of the medication whose stock should change."
+        },
+        "delta": {
+          "name": "Adjustment",
+          "description": "Positive or negative amount to add to the current stock."
+        }
+      }
+    }
+  }
+}

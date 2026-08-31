@@ -35,7 +35,7 @@ async def async_setup_entry(
 class MedicationLowStockSensor(MedicationEntity, BinarySensorEntity):
     """Whether one medication has reached its low-stock threshold."""
 
-    _attr_name = "Niedriger Bestand"
+    _attr_translation_key = "low_stock"
     _attr_icon = "mdi:package-variant-minus"
 
     def __init__(self, manager: MedicationManager, medication_id: str) -> None:
@@ -51,7 +51,7 @@ class MedicationLowStockSensor(MedicationEntity, BinarySensorEntity):
 class OverdueIntakesSensor(MedicationReminderEntity, BinarySensorEntity):
     """Whether at least one unresolved intake is currently due."""
 
-    _attr_name = "Einnahme überfällig"
+    _attr_translation_key = "overdue_intakes"
     _attr_icon = "mdi:alert-circle-outline"
 
     def __init__(self, manager: MedicationManager) -> None:
@@ -71,4 +71,3 @@ class OverdueIntakesSensor(MedicationReminderEntity, BinarySensorEntity):
             )
             for item in self.manager.data["occurrences"]
         )
-

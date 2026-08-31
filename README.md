@@ -1,51 +1,51 @@
-# Medication Reminder für Home Assistant
+# Medication Reminder for Home Assistant
 
-Eine lokale Home-Assistant-Custom-Integration für Medikamentenpläne, Bestände,
-mobile Erinnerungen und ein nachvollziehbares Soll-/Ist-Protokoll. Nach der
-Einrichtung erscheint **Medikamente** als eigener Eintrag in der Sidebar.
+[Deutsch](README.de.md)
 
-## Funktionen
+A local Home Assistant custom integration for medication schedules, stock tracking,
+actionable reminders, and an auditable planned-versus-actual intake history. After
+setup, **Medications** appears as a dedicated sidebar panel.
 
-- Medikamente mit Hersteller, Barcode/PZN, Wirkstärke, Darreichungsform,
-  Bestandseinheit, Bestand, Warnschwelle und Notizen
-- Wochenpläne mit eigener Uhrzeit je Wochentag und mehreren Uhrzeiten pro Tag
-- Intervallpläne alle x Tage ab einem frei wählbaren Startdatum
-- Mehrere Medikamente und individuelle Dosen pro Einnahme
-- Wiederholte Erinnerungen über ausgewählte `notify.*`-Dienste und Scripts
-- Mobile Aktionen: alles genommen, 30 Minuten schlummern oder App öffnen
-- In der App: Teil-Einnahmen, 30/60/120 Minuten oder bis zu einer freien Uhrzeit
-  schlummern und Einnahmen auslassen
-- Persistente offene Einnahme-Tickets und Verlauf mit Soll-/Ist-Zeit
-- Bestandsabbuchung erst bei einer tatsächlich erfassten Dosis
-- Sensoren, Binärsensoren, Events und Dienste für eigene Dashboards und Automationen
+## Features
+
+- Medication records with manufacturer, barcode/product code, strength, dosage
+  form, stock unit, current stock, warning threshold, and notes
+- Weekly schedules with different times per weekday and multiple times per day
+- Interval schedules for every x days from a chosen start date
+- Multiple medications and individual doses in one intake
+- Repeating reminders through selected `notify.*` services and scripts
+- Mobile actions to mark everything taken, snooze for 30 minutes, or open details
+- Partial intake, 30/60/120-minute and custom-time snooze, and skip controls in the app
+- Persistent open tickets and planned-versus-actual history
+- Stock deduction only after an intake is actually recorded
+- Sensors, binary sensors, events, and actions for dashboards and automations
+- English by default, with German UI, entity, setup, action, and notification translations
 
 ## Installation
 
-1. Den Ordner `custom_components/medication_reminder` in das gleichnamige
-   Verzeichnis deiner Home-Assistant-Konfiguration kopieren.
-2. Home Assistant neu starten.
-3. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen** nach
-   **Medication Reminder** suchen und die Integration einmal hinzufügen.
-4. Die neue Seite **Medikamente** in der Sidebar öffnen.
+### HACS custom repository
 
-Für Action-Buttons wird ein Benachrichtigungsdienst der Home-Assistant-Companion-App
-benötigt, beispielsweise `notify.mobile_app_mein_handy`. Andere Notify-Dienste
-erhalten die Nachricht, ignorieren aber möglicherweise die Buttons.
+1. In HACS, open **Integrations**, then the three-dot menu and **Custom repositories**.
+2. Add `https://github.com/Finnlife/hass-medreminder` as an **Integration**.
+3. Download **Medication Reminder** and restart Home Assistant.
+4. Go to **Settings → Devices & services → Add integration**, search for
+   **Medication Reminder**, and add it once.
+5. Open **Medications** in the sidebar.
 
-## Home-Assistant-Schnittstellen
+Alternatively, copy `custom_components/medication_reminder` to the same path in
+your Home Assistant configuration and restart Home Assistant.
 
-Globale Entitäten:
+Action buttons require a notification service that supports Home Assistant
+actions, such as a Companion App `notify.mobile_app_*` service. Other notification
+providers may display the message without its buttons.
 
-- `sensor.medikamentenplan_nachste_einnahme`
-- `sensor.medikamentenplan_offene_einnahmen`
-- `sensor.medikamentenplan_letzte_einnahme`
-- `binary_sensor.medikamentenplan_einnahme_uberfallig`
+## Home Assistant interfaces
 
-Für jedes Medikament entstehen ein Bestands-Sensor und ein Low-Stock-Binärsensor.
-Die endgültigen Entity-IDs werden von Home Assistant vergeben und können in der
-Geräteansicht angepasst werden.
+Global entities represent the next, pending, last, and overdue intakes. Each
+medication also creates a stock sensor and a low-stock binary sensor. Home Assistant
+assigns final entity IDs, which can be changed in the device view.
 
-Dienste:
+Actions:
 
 - `medication_reminder.record_intake`
 - `medication_reminder.snooze`
@@ -58,23 +58,16 @@ Events:
 - `medication_reminder_skipped`
 - `medication_reminder_low_stock`
 
-## Datenspeicherung und Verhalten
+## Storage and behavior
 
-Alle Daten liegen lokal im Home-Assistant-Storage unter
-`.storage/medication_reminder.data`. Bei einem Neustart werden seit dem letzten
-Lauf verpasste Soll-Zeitpunkte bis maximal 30 Tage nacherzeugt. Ein Vorgang wird
-idempotent verarbeitet: Ein erneuter Klick auf eine bereits abgeschlossene mobile
-Aktion bucht keinen Bestand doppelt ab. Die letzten 2.000 abgeschlossenen Vorgänge
-bleiben erhalten; offene Vorgänge werden nie automatisch entfernt.
+All data remains in Home Assistant under `.storage/medication_reminder.data`.
+After a restart, missed scheduled times are generated for up to 30 days. Intake
+recording is idempotent: using an old completed notification action again does not
+deduct stock twice. The latest 2,000 completed occurrences are retained, while
+open occurrences are never removed automatically.
 
-## Entwicklung und Prüfung
+## Development and testing
 
-```bash
-python -m unittest discover -s tests -v
-python -m compileall custom_components/medication_reminder
-node --check custom_components/medication_reminder/frontend/medication-reminder-panel.js
-```
-
-Für eine vollständige Integration-Prüfung empfiehlt sich zusätzlich eine aktuelle
-Home-Assistant-Entwicklungsumgebung mit `pytest-homeassistant-custom-component`.
+See [docs/TESTING.md](docs/TESTING.md) for automated checks, the isolated Docker
+test instance, and the exact handoff needed for a full Codex browser test.
 

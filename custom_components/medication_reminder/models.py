@@ -26,7 +26,7 @@ def normalize_medication(raw: dict[str, Any], existing_id: str | None = None) ->
     name = str(raw.get("name", "")).strip()
     if not name:
         raise ValueError("Name is required")
-    unit = str(raw.get("unit", "Stück")).strip() or "Stück"
+    unit = str(raw.get("unit", "pieces")).strip() or "pieces"
     stock = _non_negative_number(raw.get("stock", 0), "stock")
     threshold = _non_negative_number(raw.get("low_stock_threshold", 0), "low_stock_threshold")
     return {

@@ -1,24 +1,10 @@
-const DAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
-const STATUS = { pending: "Offen", partial: "Teilweise", taken: "Genommen", skipped: "Ausgelassen" };
+import { createTranslator, resolveLanguage } from "./localize.js";
+
+const DAY_KEYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
 const esc = (value) => String(value ?? "")
   .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
   .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
-const number = (value) => new Intl.NumberFormat("de-DE", { maximumFractionDigits: 3 }).format(value ?? 0);
-const dateTime = (value) => value ? new Intl.DateTimeFormat("de-DE", {
-  weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
-}).format(new Date(value)) : "–";
-const relative = (value) => {
-  if (!value) return "Nicht geplant";
-  const diff = new Date(value).getTime() - Date.now();
-  const minutes = Math.round(Math.abs(diff) / 60000);
-  if (minutes < 1) return "jetzt";
-  if (minutes < 60) return `${diff < 0 ? "vor" : "in"} ${minutes} Min.`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${diff < 0 ? "vor" : "in"} ${hours} Std.`;
-  return dateTime(value);
-};
-
 class MedicationReminderPanel extends HTMLElement {
   constructor() {
     super();
@@ -29,6 +15,9 @@ class MedicationReminderPanel extends HTMLElement {
     this.loading = false;
     this.lastLoad = 0;
     this.toast = null;
+    this.language = "en";
+    this.locale = "en-US";
+    this.t = createTranslator("en");
     this.shadowRoot.addEventListener("click", (event) => this.onClick(event));
     this.shadowRoot.addEventListener("submit", (event) => this.onSubmit(event));
     this.shadowRoot.addEventListener("change", (event) => this.onChange(event));
@@ -36,6 +25,13 @@ class MedicationReminderPanel extends HTMLElement {
 
   set hass(value) {
     this._hass = value;
+    const language = resolveLanguage(value);
+    if (language !== this.language) {
+      this.language = language;
+      this.locale = language === "de" ? "de-DE" : "en-US";
+      this.t = createTranslator(language);
+      if (this.isConnected) this.render();
+    }
     if (!this.state && !this.loading) this.load();
   }
   get hass() { return this._hass; }
@@ -50,7 +46,7 @@ class MedicationReminderPanel extends HTMLElement {
   disconnectedCallback() { window.clearInterval(this.poller); }
 
   async call(type, payload = {}) {
-    if (!this.hass) throw new Error("Home Assistant ist noch nicht verbunden.");
+    if (!this.hass) throw new Error("Home Assistant is not connected yet.");
     return this.hass.connection.sendMessagePromise({ type: `medication_reminder/${type}`, ...payload });
   }
 
@@ -72,7 +68,36 @@ class MedicationReminderPanel extends HTMLElement {
   }
 
   errorText(error) {
-    return error?.message || error?.body?.message || "Die Aktion konnte nicht ausgeführt werden.";
+    const message = error?.body?.message || error?.message;
+    if (!message) return this.t("error.generic");
+    const translations = {
+      "Medication Reminder is not configured": "error.not_configured",
+      "Medication is still used by an intake": "error.medication_in_use",
+      "Stock cannot become negative": "error.negative_stock",
+      "Taken dose exceeds the remaining planned dose": "error.dose_exceeds",
+      "No dose was selected": "error.no_dose",
+      "Snooze time must be in the future": "error.future_snooze",
+      "Only open intakes can be snoozed": "error.only_open_snooze",
+      "Name is required": "error.name_required",
+      "Unknown medication": "error.unknown_medication",
+      "Medication occurs more than once": "error.medication_duplicate",
+      "At least one medication is required": "error.medication_required",
+      "At least one weekday is required": "error.select_weekday",
+      "repeat_minutes must be between 5 and 1440": "error.repeat_range",
+      "every_days must be between 1 and 365": "error.every_days_range",
+      "Unsupported schedule type": "error.schedule_type",
+      "Invalid snooze time": "error.invalid_snooze",
+      "Time must use HH:MM": "error.invalid_time_generic",
+      "Invalid time": "error.invalid_time_generic",
+    };
+    if (translations[message]) return this.t(translations[message]);
+    if (message.startsWith("Not enough stock for ")) {
+      return this.t("error.not_enough_stock", { medication: message.slice(21) });
+    }
+    if (/ must (not be negative|be greater than zero)$/.test(message)) {
+      return this.t("error.invalid_value");
+    }
+    return message;
   }
 
   showToast(message, error = false) {
@@ -84,31 +109,57 @@ class MedicationReminderPanel extends HTMLElement {
 
   medication(id) { return this.state?.medications.find((item) => item.id === id); }
   regimen(id) { return this.state?.regimens.find((item) => item.id === id); }
+  days() { return DAY_KEYS.map((day) => this.t(`day.${day}`)); }
+  status(status) { return this.t(`status.${status}`); }
+  formatNumber(value) {
+    return new Intl.NumberFormat(this.locale, { maximumFractionDigits: 3 }).format(value ?? 0);
+  }
+  formatDate(value) {
+    return value ? new Intl.DateTimeFormat(this.locale).format(new Date(`${value}T00:00:00`)) : "–";
+  }
+  formatDateTime(value) {
+    return value ? new Intl.DateTimeFormat(this.locale, {
+      weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
+    }).format(new Date(value)) : "–";
+  }
+  formatTime(value) {
+    return new Intl.DateTimeFormat(this.locale, { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  }
+  relative(value) {
+    if (!value) return this.t("common.none");
+    const diff = new Date(value).getTime() - Date.now();
+    const minutes = Math.round(Math.abs(diff) / 60000);
+    if (minutes < 1) return this.t("relative.now");
+    if (minutes < 60) return this.t(diff < 0 ? "relative.before_minutes" : "relative.in_minutes", { minutes });
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return this.t(diff < 0 ? "relative.before_hours" : "relative.in_hours", { hours });
+    return this.formatDateTime(value);
+  }
 
   render() {
     const content = !this.state
-      ? `<div class="loading"><div class="loader"></div><h2>Medikamentenplan wird geladen</h2><p>Lokale Daten werden sicher aus Home Assistant gelesen.</p></div>`
+      ? `<div class="loading"><div class="loader"></div><h2>${this.t("app.loading_title")}</h2><p>${this.t("app.loading_text")}</p></div>`
       : this.renderContent();
     this.shadowRoot.innerHTML = `<style>${this.styles()}</style>${content}${this.renderModal()}${this.renderToast()}`;
   }
 
   renderContent() {
     const tabs = [
-      ["overview", "mdi:view-dashboard-outline", "Übersicht"],
-      ["medications", "mdi:pill-multiple", "Medikamente"],
-      ["regimens", "mdi:calendar-clock", "Einnahmen"],
-      ["history", "mdi:history", "Verlauf"],
+      ["overview", "mdi:view-dashboard-outline", this.t("nav.overview")],
+      ["medications", "mdi:pill-multiple", this.t("nav.medications")],
+      ["regimens", "mdi:calendar-clock", this.t("nav.regimens")],
+      ["history", "mdi:history", this.t("nav.history")],
     ];
     return `<div class="app">
       <header>
         <div class="brand"><div class="brand-icon"><ha-icon icon="mdi:pill-multiple"></ha-icon></div>
-          <div><span>MEDICATION REMINDER</span><h1>Mein Medikamentenplan</h1></div></div>
-        <div class="header-actions"><button class="ghost icon-only" data-action="refresh" title="Aktualisieren"><ha-icon icon="mdi:refresh"></ha-icon></button>
-          <button class="primary" data-action="new-regimen"><ha-icon icon="mdi:plus"></ha-icon><span>Einnahme planen</span></button></div>
+          <div><span>MEDICATION REMINDER</span><h1>${this.t("app.title")}</h1></div></div>
+        <div class="header-actions"><button class="ghost icon-only" data-action="refresh" title="${this.t("app.refresh")}"><ha-icon icon="mdi:refresh"></ha-icon></button>
+          <button class="primary" data-action="new-regimen"><ha-icon icon="mdi:plus"></ha-icon><span>${this.t("regimens.create")}</span></button></div>
       </header>
       <nav>${tabs.map(([id, icon, label]) => `<button data-tab="${id}" class="${this.activeTab === id ? "active" : ""}"><ha-icon icon="${icon}"></ha-icon>${label}</button>`).join("")}</nav>
       <main>${this.renderTab()}</main>
-      <footer><span><i class="live"></i> Lokal in Home Assistant gespeichert</span><span>Zuletzt synchronisiert ${new Date(this.lastLoad).toLocaleTimeString("de-DE", {hour:"2-digit",minute:"2-digit"})}</span></footer>
+      <footer><span><i class="live"></i> ${this.t("app.local_storage")}</span><span>${this.t("app.last_synced", { time: this.formatTime(this.lastLoad) })}</span></footer>
     </div>`;
   }
 
@@ -126,20 +177,20 @@ class MedicationReminderPanel extends HTMLElement {
     const next = this.state.upcoming[0];
     const nextRegimen = next ? this.regimen(next.regimen_id) : null;
     return `<section class="hero">
-        <div><p class="eyebrow">HEUTE IM BLICK</p><h2>${open.length ? `${open.length} ${open.length === 1 ? "Einnahme wartet" : "Einnahmen warten"}` : "Alles erledigt"}</h2>
-          <p>${open.length ? "Erfasse die tatsächlich genommenen Mengen oder verschiebe die Erinnerung." : "Aktuell sind keine Einnahmen offen."}</p></div>
+        <div><p class="eyebrow">${this.t("overview.eyebrow")}</p><h2>${open.length ? this.t(open.length === 1 ? "overview.waiting_one" : "overview.waiting_many", { count: open.length }) : this.t("overview.all_done")}</h2>
+          <p>${this.t(open.length ? "overview.open_help" : "overview.no_open")}</p></div>
         <div class="hero-orb"><ha-icon icon="${open.length ? "mdi:clock-alert-outline" : "mdi:check-bold"}"></ha-icon></div>
       </section>
       <section class="stats">
-        ${this.stat("mdi:calendar-arrow-right", "Nächste Einnahme", nextRegimen?.name || "Keine", next ? relative(next.scheduled_at) : "–", "mint")}
-        ${this.stat("mdi:clipboard-clock-outline", "Offene Vorgänge", open.length, open.length ? "Bitte prüfen" : "Alles aktuell", open.length ? "amber" : "blue")}
-        ${this.stat("mdi:package-variant", "Niedriger Bestand", low.length, low.length ? low.map((m) => esc(m.name)).join(", ") : "Gut versorgt", low.length ? "red" : "violet")}
-        ${this.stat("mdi:pill", "Medikamente", this.state.medications.length, `${this.state.regimens.filter((r) => r.active).length} aktive Pläne`, "blue")}
+        ${this.stat("mdi:calendar-arrow-right", this.t("overview.next_intake"), nextRegimen?.name || this.t("common.none"), next ? this.relative(next.scheduled_at) : "–", "mint")}
+        ${this.stat("mdi:clipboard-clock-outline", this.t("overview.open_tickets"), open.length, this.t(open.length ? "overview.check_required" : "overview.up_to_date"), open.length ? "amber" : "blue")}
+        ${this.stat("mdi:package-variant", this.t("overview.low_stock"), low.length, low.length ? low.map((m) => esc(m.name)).join(", ") : this.t("overview.well_stocked"), low.length ? "red" : "violet")}
+        ${this.stat("mdi:pill", this.t("overview.medications"), this.state.medications.length, this.t("overview.active_plans", { count: this.state.regimens.filter((r) => r.active).length }), "blue")}
       </section>
-      <div class="section-heading"><div><p class="eyebrow">OFFENE TICKETS</p><h2>Fällige Einnahmen</h2></div></div>
-      <section class="ticket-list">${open.length ? open.map((item) => this.renderTicket(item)).join("") : this.empty("mdi:check-decagram-outline", "Keine offenen Einnahmen", "Sobald eine Einnahme fällig wird, erscheint sie hier.")}</section>
-      <div class="section-heading"><div><p class="eyebrow">BESTÄNDE</p><h2>Schneller Überblick</h2></div><button class="ghost" data-action="new-medication"><ha-icon icon="mdi:plus"></ha-icon>Medikament</button></div>
-      <section class="stock-grid">${this.state.medications.length ? this.state.medications.slice(0, 6).map((item) => this.stockCard(item, true)).join("") : this.empty("mdi:pill-off", "Noch keine Medikamente", "Lege zuerst ein Medikament an.")}</section>`;
+      <div class="section-heading"><div><p class="eyebrow">${this.t("overview.open_eyebrow")}</p><h2>${this.t("overview.due_intakes")}</h2></div></div>
+      <section class="ticket-list">${open.length ? open.map((item) => this.renderTicket(item)).join("") : this.empty("mdi:check-decagram-outline", this.t("overview.no_due_title"), this.t("overview.no_due_text"))}</section>
+      <div class="section-heading"><div><p class="eyebrow">${this.t("overview.stock_eyebrow")}</p><h2>${this.t("overview.quick_view")}</h2></div><button class="ghost" data-action="new-medication"><ha-icon icon="mdi:plus"></ha-icon>${this.t("overview.add_medication")}</button></div>
+      <section class="stock-grid">${this.state.medications.length ? this.state.medications.slice(0, 6).map((item) => this.stockCard(item, true)).join("") : this.empty("mdi:pill-off", this.t("overview.no_medications_title"), this.t("overview.no_medications_text"))}</section>`;
   }
 
   stat(icon, label, value, hint, tone) {
@@ -152,66 +203,67 @@ class MedicationReminderPanel extends HTMLElement {
     const snoozed = item.snoozed_until && new Date(item.snoozed_until) > new Date();
     return `<article class="ticket" data-occurrence="${item.id}">
       <div class="ticket-side ${snoozed ? "snoozed" : ""}"><ha-icon icon="${snoozed ? "mdi:power-sleep" : "mdi:alarm"}"></ha-icon></div>
-      <div class="ticket-body"><div class="ticket-head"><div><span class="badge ${item.status}">${STATUS[item.status]}</span><h3>${esc(regimen.name)}</h3><p>Soll: ${dateTime(item.scheduled_at)} · ${snoozed ? `Schlummert bis ${dateTime(item.snoozed_until)}` : relative(item.scheduled_at)}</p></div><strong class="time">${new Date(item.scheduled_at).toLocaleTimeString("de-DE", {hour:"2-digit",minute:"2-digit"})}</strong></div>
+      <div class="ticket-body"><div class="ticket-head"><div><span class="badge ${item.status}">${this.status(item.status)}</span><h3>${esc(regimen.name)}</h3><p>${this.t("ticket.due", { time: this.formatDateTime(item.scheduled_at) })} · ${snoozed ? this.t("ticket.snoozed_until", { time: this.formatDateTime(item.snoozed_until) }) : this.relative(item.scheduled_at)}</p></div><strong class="time">${this.formatTime(item.scheduled_at)}</strong></div>
         ${regimen.instructions ? `<p class="instructions"><ha-icon icon="mdi:information-outline"></ha-icon>${esc(regimen.instructions)}</p>` : ""}
         <div class="dose-list">${item.items.map((dose) => {
           const med = this.medication(dose.medication_id);
           const remaining = Math.max(0, dose.planned_dose - dose.taken_dose);
           return `<label class="dose ${remaining === 0 ? "done" : ""}"><input type="checkbox" data-medication="${dose.medication_id}" ${remaining ? "checked" : "disabled"}>
-            <span class="pill-dot"></span><span class="dose-name"><strong>${esc(med?.name || "Gelöschtes Medikament")}</strong><small>${esc(med?.strength || med?.form || "")}</small></span>
-            <span class="dose-amount"><input type="number" data-dose="${dose.medication_id}" min="0" max="${remaining}" step="0.001" value="${remaining}" ${remaining ? "" : "disabled"}> ${esc(med?.unit || "")}${dose.taken_dose ? `<small>${number(dose.taken_dose)} bereits</small>` : ""}</span></label>`;
+            <span class="pill-dot"></span><span class="dose-name"><strong>${esc(med?.name || this.t("ticket.deleted_medication"))}</strong><small>${esc(med?.strength || med?.form || "")}</small></span>
+            <span class="dose-amount"><input type="number" data-dose="${dose.medication_id}" min="0" max="${remaining}" step="0.001" value="${remaining}" ${remaining ? "" : "disabled"}> ${esc(med?.unit || "")}${dose.taken_dose ? `<small>${this.t("ticket.already_taken", { amount: this.formatNumber(dose.taken_dose) })}</small>` : ""}</span></label>`;
         }).join("")}</div>
-        <div class="ticket-actions"><button class="primary" data-action="take-selected" data-id="${item.id}"><ha-icon icon="mdi:check"></ha-icon>Auswahl genommen</button>
-          <div class="snooze"><button class="ghost" data-action="snooze" data-id="${item.id}" data-minutes="30">30 Min.</button><button class="ghost" data-action="snooze" data-id="${item.id}" data-minutes="60">1 Std.</button><button class="ghost" data-action="snooze" data-id="${item.id}" data-minutes="120">2 Std.</button></div>
-          <input class="custom-time" type="datetime-local" data-snooze-time="${item.id}"><button class="ghost icon-only" data-action="snooze-custom" data-id="${item.id}" title="Bis zur gewählten Zeit schlummern"><ha-icon icon="mdi:clock-edit-outline"></ha-icon></button>
-          <button class="text danger-text" data-action="skip" data-id="${item.id}">Auslassen</button></div>
+        <div class="ticket-actions"><button class="primary" data-action="take-selected" data-id="${item.id}"><ha-icon icon="mdi:check"></ha-icon>${this.t("ticket.take_selection")}</button>
+          <div class="snooze"><button class="ghost" data-action="snooze" data-id="${item.id}" data-minutes="30">${this.t("ticket.snooze_30")}</button><button class="ghost" data-action="snooze" data-id="${item.id}" data-minutes="60">${this.t("ticket.snooze_60")}</button><button class="ghost" data-action="snooze" data-id="${item.id}" data-minutes="120">${this.t("ticket.snooze_120")}</button></div>
+          <input class="custom-time" type="datetime-local" data-snooze-time="${item.id}"><button class="ghost icon-only" data-action="snooze-custom" data-id="${item.id}" title="${this.t("ticket.custom_snooze")}"><ha-icon icon="mdi:clock-edit-outline"></ha-icon></button>
+          <button class="text danger-text" data-action="skip" data-id="${item.id}">${this.t("ticket.skip")}</button></div>
       </div></article>`;
   }
 
   renderMedications() {
-    return `<div class="page-title"><div><p class="eyebrow">APOTHEKE</p><h2>Medikamente & Bestände</h2><p>Packungsdaten, Dosiseinheit und Warnschwellen zentral verwalten.</p></div><button class="primary" data-action="new-medication"><ha-icon icon="mdi:plus"></ha-icon>Medikament anlegen</button></div>
-      <section class="stock-grid large">${this.state.medications.length ? this.state.medications.map((item) => this.stockCard(item, false)).join("") : this.empty("mdi:pill-off", "Noch keine Medikamente", "Erstelle dein erstes Medikament samt Anfangsbestand.")}</section>`;
+    return `<div class="page-title"><div><p class="eyebrow">${this.t("medications.eyebrow")}</p><h2>${this.t("medications.title")}</h2><p>${this.t("medications.subtitle")}</p></div><button class="primary" data-action="new-medication"><ha-icon icon="mdi:plus"></ha-icon>${this.t("medications.create")}</button></div>
+      <section class="stock-grid large">${this.state.medications.length ? this.state.medications.map((item) => this.stockCard(item, false)).join("") : this.empty("mdi:pill-off", this.t("medications.empty_title"), this.t("medications.empty_text"))}</section>`;
   }
 
   stockCard(item, compact) {
     const low = item.stock <= item.low_stock_threshold;
     const percentage = item.low_stock_threshold > 0 ? Math.min(100, (item.stock / Math.max(item.low_stock_threshold * 3, 1)) * 100) : 100;
-    return `<article class="stock-card ${low ? "is-low" : ""}"><div class="stock-top"><div class="medicine-icon"><ha-icon icon="mdi:pill"></ha-icon></div><span class="badge ${low ? "warning" : "ok"}">${low ? "Nachbestellen" : "Verfügbar"}</span></div>
-      <h3>${esc(item.name)}</h3><p>${[item.manufacturer, item.strength, item.form].filter(Boolean).map(esc).join(" · ") || "Keine Zusatzangaben"}</p>
-      <div class="stock-value"><strong>${number(item.stock)}</strong><span>${esc(item.unit)}</span></div><div class="progress"><i style="width:${percentage}%"></i></div><small>Warnung ab ${number(item.low_stock_threshold)} ${esc(item.unit)}</small>
-      <div class="card-actions"><button class="ghost" data-action="adjust-stock" data-id="${item.id}"><ha-icon icon="mdi:plus-minus-variant"></ha-icon>Bestand</button>${compact ? `<button class="text" data-tab="medications">Details</button>` : `<button class="text" data-action="edit-medication" data-id="${item.id}">Bearbeiten</button><button class="text danger-text" data-action="delete-medication" data-id="${item.id}">Löschen</button>`}</div></article>`;
+    return `<article class="stock-card ${low ? "is-low" : ""}"><div class="stock-top"><div class="medicine-icon"><ha-icon icon="mdi:pill"></ha-icon></div><span class="badge ${low ? "warning" : "ok"}">${this.t(low ? "stock.reorder" : "stock.available")}</span></div>
+      <h3>${esc(item.name)}</h3><p>${[item.manufacturer, item.strength, item.form].filter(Boolean).map(esc).join(" · ") || this.t("stock.no_details")}</p>
+      <div class="stock-value"><strong>${this.formatNumber(item.stock)}</strong><span>${esc(item.unit)}</span></div><div class="progress"><i style="width:${percentage}%"></i></div><small>${this.t("stock.warning_at", { amount: this.formatNumber(item.low_stock_threshold), unit: esc(item.unit) })}</small>
+      <div class="card-actions"><button class="ghost" data-action="adjust-stock" data-id="${item.id}"><ha-icon icon="mdi:plus-minus-variant"></ha-icon>${this.t("stock.adjust")}</button>${compact ? `<button class="text" data-tab="medications">${this.t("common.details")}</button>` : `<button class="text" data-action="edit-medication" data-id="${item.id}">${this.t("common.edit")}</button><button class="text danger-text" data-action="delete-medication" data-id="${item.id}">${this.t("common.delete")}</button>`}</div></article>`;
   }
 
   renderRegimens() {
-    return `<div class="page-title"><div><p class="eyebrow">ZEITPLÄNE</p><h2>Einnahmen & Erinnerungen</h2><p>Flexible Wochen- und Intervallpläne mit eigenen Benachrichtigungszielen.</p></div><button class="primary" data-action="new-regimen"><ha-icon icon="mdi:plus"></ha-icon>Einnahme planen</button></div>
-      <section class="regimen-list">${this.state.regimens.length ? this.state.regimens.map((item) => this.regimenCard(item)).join("") : this.empty("mdi:calendar-blank-outline", "Noch keine Einnahmen geplant", "Erstelle einen Wochenplan oder einen Rhythmus alle x Tage.")}</section>`;
+    return `<div class="page-title"><div><p class="eyebrow">${this.t("regimens.eyebrow")}</p><h2>${this.t("regimens.title")}</h2><p>${this.t("regimens.subtitle")}</p></div><button class="primary" data-action="new-regimen"><ha-icon icon="mdi:plus"></ha-icon>${this.t("regimens.create")}</button></div>
+      <section class="regimen-list">${this.state.regimens.length ? this.state.regimens.map((item) => this.regimenCard(item)).join("") : this.empty("mdi:calendar-blank-outline", this.t("regimens.empty_title"), this.t("regimens.empty_text"))}</section>`;
   }
 
   regimenCard(item) {
-    return `<article class="regimen-card ${item.active ? "" : "inactive"}"><div class="regimen-icon"><ha-icon icon="mdi:calendar-clock"></ha-icon></div><div class="regimen-main"><div class="regimen-title"><span class="badge ${item.active ? "ok" : "muted"}">${item.active ? "Aktiv" : "Pausiert"}</span><h3>${esc(item.name)}</h3></div>
-      <p class="schedule"><ha-icon icon="mdi:clock-outline"></ha-icon>${esc(this.scheduleText(item.schedule))}</p><div class="chips">${item.items.map((dose) => { const med = this.medication(dose.medication_id); return `<span>${number(dose.dose)} ${esc(med?.unit || "")} ${esc(med?.name || "Unbekannt")}</span>`; }).join("")}</div>
-      <small>${item.notify_services.length} Benachrichtigungsziel(e) · Wiederholung alle ${item.repeat_minutes} Min.</small></div>
-      <div class="vertical-actions"><button class="ghost icon-only" data-action="edit-regimen" data-id="${item.id}" title="Bearbeiten"><ha-icon icon="mdi:pencil-outline"></ha-icon></button><button class="ghost icon-only danger-text" data-action="delete-regimen" data-id="${item.id}" title="Löschen"><ha-icon icon="mdi:delete-outline"></ha-icon></button></div></article>`;
+    return `<article class="regimen-card ${item.active ? "" : "inactive"}"><div class="regimen-icon"><ha-icon icon="mdi:calendar-clock"></ha-icon></div><div class="regimen-main"><div class="regimen-title"><span class="badge ${item.active ? "ok" : "muted"}">${this.t(item.active ? "common.active" : "common.paused")}</span><h3>${esc(item.name)}</h3></div>
+      <p class="schedule"><ha-icon icon="mdi:clock-outline"></ha-icon>${esc(this.scheduleText(item.schedule))}</p><div class="chips">${item.items.map((dose) => { const med = this.medication(dose.medication_id); return `<span>${this.formatNumber(dose.dose)} ${esc(med?.unit || "")} ${esc(med?.name || this.t("ticket.deleted_medication"))}</span>`; }).join("")}</div>
+      <small>${this.t("regimens.reminder_summary", { targets: item.notify_services.length, minutes: item.repeat_minutes })}</small></div>
+      <div class="vertical-actions"><button class="ghost icon-only" data-action="edit-regimen" data-id="${item.id}" title="${this.t("common.edit")}"><ha-icon icon="mdi:pencil-outline"></ha-icon></button><button class="ghost icon-only danger-text" data-action="delete-regimen" data-id="${item.id}" title="${this.t("common.delete")}"><ha-icon icon="mdi:delete-outline"></ha-icon></button></div></article>`;
   }
 
   scheduleText(schedule) {
-    if (schedule.type === "interval") return `Alle ${schedule.every_days} Tag${schedule.every_days === 1 ? "" : "e"}, ab ${new Date(`${schedule.start_date}T00:00:00`).toLocaleDateString("de-DE")} um ${schedule.time} Uhr`;
+    if (schedule.type === "interval") return this.t(schedule.every_days === 1 ? "schedule.every_day" : "schedule.every_days", { days: schedule.every_days, date: this.formatDate(schedule.start_date), time: schedule.time });
     const groups = new Map();
+    const days = this.days();
     Object.entries(schedule.days).forEach(([day, times]) => {
       const key = times.join(", ");
-      groups.set(key, [...(groups.get(key) || []), DAYS[Number(day)].slice(0, 2)]);
+      groups.set(key, [...(groups.get(key) || []), days[Number(day)].slice(0, 2)]);
     });
-    return [...groups.entries()].map(([times, days]) => `${days.join(", ")} · ${times} Uhr`).join(" | ");
+    return [...groups.entries()].map(([times, groupedDays]) => this.t("schedule.weekly_group", { days: groupedDays.join(", "), times })).join(" | ");
   }
 
   renderHistory() {
     const rows = this.state.occurrences.filter((item) => ["taken", "skipped"].includes(item.status)).sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at));
-    return `<div class="page-title"><div><p class="eyebrow">PROTOKOLL</p><h2>Einnahmeverlauf</h2><p>Soll- und Ist-Zeitpunkt sowie tatsächlich abgebuchte Dosen.</p></div></div>
-      ${rows.length ? `<div class="table-wrap"><table><thead><tr><th>Status</th><th>Einnahme</th><th>Geplant</th><th>Tatsächlich</th><th>Abweichung</th><th>Dosen</th></tr></thead><tbody>${rows.map((item) => {
+    return `<div class="page-title"><div><p class="eyebrow">${this.t("history.eyebrow")}</p><h2>${this.t("history.title")}</h2><p>${this.t("history.subtitle")}</p></div></div>
+      ${rows.length ? `<div class="table-wrap"><table><thead><tr><th>${this.t("history.status")}</th><th>${this.t("history.intake")}</th><th>${this.t("history.scheduled")}</th><th>${this.t("history.actual")}</th><th>${this.t("history.deviation")}</th><th>${this.t("history.doses")}</th></tr></thead><tbody>${rows.map((item) => {
         const regimen = this.regimen(item.regimen_id); const actual = item.taken_at ? new Date(item.taken_at) : null; const planned = new Date(item.scheduled_at);
         const diff = actual && item.status !== "skipped" ? Math.round((actual - planned) / 60000) : null;
-        return `<tr><td><span class="badge ${item.status}">${STATUS[item.status]}</span></td><td><strong>${esc(regimen?.name || "Gelöschter Plan")}</strong></td><td>${dateTime(item.scheduled_at)}</td><td>${item.status === "skipped" ? "Ausgelassen" : dateTime(item.taken_at)}</td><td>${diff === null ? "–" : `${diff > 0 ? "+" : ""}${diff} Min.`}</td><td>${item.items.map((dose) => `${number(dose.taken_dose)}/${number(dose.planned_dose)} ${esc(this.medication(dose.medication_id)?.name || "")}`).join("<br>")}</td></tr>`;
-      }).join("")}</tbody></table></div>` : this.empty("mdi:history", "Noch kein Verlauf", "Abgeschlossene und ausgelassene Einnahmen werden hier protokolliert.")}`;
+        return `<tr><td><span class="badge ${item.status}">${this.status(item.status)}</span></td><td><strong>${esc(regimen?.name || this.t("history.deleted_schedule"))}</strong></td><td>${this.formatDateTime(item.scheduled_at)}</td><td>${item.status === "skipped" ? this.status("skipped") : this.formatDateTime(item.taken_at)}</td><td>${diff === null ? "–" : `${diff > 0 ? "+" : ""}${diff} ${this.t("common.minutes_short")}`}</td><td>${item.items.map((dose) => `${this.formatNumber(dose.taken_dose)}/${this.formatNumber(dose.planned_dose)} ${esc(this.medication(dose.medication_id)?.name || "")}`).join("<br>")}</td></tr>`;
+      }).join("")}</tbody></table></div>` : this.empty("mdi:history", this.t("history.empty_title"), this.t("history.empty_text"))}`;
   }
 
   empty(icon, title, text) { return `<div class="empty"><ha-icon icon="${icon}"></ha-icon><h3>${title}</h3><p>${text}</p></div>`; }
@@ -224,39 +276,40 @@ class MedicationReminderPanel extends HTMLElement {
   }
 
   medicationModal(item = {}) {
-    return `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="Medikament bearbeiten" data-modal-stop>
-      <div class="modal-head"><div><p class="eyebrow">MEDIKAMENT</p><h2>${item.id ? "Medikament bearbeiten" : "Neues Medikament"}</h2></div><button class="ghost icon-only" data-action="close-modal"><ha-icon icon="mdi:close"></ha-icon></button></div>
+    return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-label="${this.t("med_form.dialog_label")}" data-modal-stop>
+      <div class="modal-head"><div><p class="eyebrow">${this.t("med_form.eyebrow")}</p><h2>${this.t(item.id ? "med_form.edit_title" : "med_form.new_title")}</h2></div><button class="ghost icon-only" data-action="close-modal" title="${this.t("common.cancel")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
       <form data-form="medication"><input type="hidden" name="id" value="${esc(item.id || "")}"><div class="form-grid">
-        ${this.field("name", "Name", item.name, true, "z. B. Metformin")}${this.field("manufacturer", "Hersteller", item.manufacturer, false, "z. B. 1A Pharma")}
-        ${this.field("barcode", "Barcode / PZN", item.barcode, false, "Scan- oder Artikelnummer")}${this.field("strength", "Wirkstärke", item.strength, false, "z. B. 500 mg")}
-        ${this.field("form", "Darreichungsform", item.form, false, "Tablette, Tropfen, …")}${this.field("unit", "Bestandseinheit", item.unit || "Stück", true, "Stück, ml, Hübe, …")}
-        ${this.field("stock", "Aktueller Bestand", item.stock ?? 0, true, "", "number", "0", "0.001")}${this.field("low_stock_threshold", "Warnschwelle", item.low_stock_threshold ?? 0, true, "", "number", "0", "0.001")}
-        <label class="field full"><span>Notizen</span><textarea name="notes" rows="3" placeholder="Optionale Hinweise">${esc(item.notes || "")}</textarea></label>
-      </div><div class="modal-actions"><button type="button" class="ghost" data-action="close-modal">Abbrechen</button><button class="primary" type="submit"><ha-icon icon="mdi:content-save-outline"></ha-icon>Speichern</button></div></form>
+        ${this.field("name", this.t("med_form.name"), item.name, true, this.t("med_form.name_placeholder"))}${this.field("manufacturer", this.t("med_form.manufacturer"), item.manufacturer, false, this.t("med_form.manufacturer_placeholder"))}
+        ${this.field("barcode", this.t("med_form.barcode"), item.barcode, false, this.t("med_form.barcode_placeholder"))}${this.field("strength", this.t("med_form.strength"), item.strength, false, this.t("med_form.strength_placeholder"))}
+        ${this.field("form", this.t("med_form.form"), item.form, false, this.t("med_form.form_placeholder"))}${this.field("unit", this.t("med_form.unit"), item.unit || this.t("med_form.unit_default"), true, this.t("med_form.unit_placeholder"))}
+        ${this.field("stock", this.t("med_form.stock"), item.stock ?? 0, true, "", "number", "0", "0.001")}${this.field("low_stock_threshold", this.t("med_form.threshold"), item.low_stock_threshold ?? 0, true, "", "number", "0", "0.001")}
+        <label class="field full"><span>${this.t("med_form.notes")}</span><textarea name="notes" rows="3" placeholder="${this.t("med_form.notes_placeholder")}">${esc(item.notes || "")}</textarea></label>
+      </div><div class="modal-actions"><button type="button" class="ghost" data-action="close-modal">${this.t("common.cancel")}</button><button class="primary" type="submit"><ha-icon icon="mdi:content-save-outline"></ha-icon>${this.t("common.save")}</button></div></form>
     </section></div>`;
   }
 
   regimenModal(item = {}) {
     const schedule = item.schedule || { type: "weekly", days: {0:["13:00"],1:["13:00"],2:["13:00"],3:["13:00"],4:["13:00"],5:["11:00"],6:["11:00"]} };
     const items = item.items?.length ? item.items : [{ medication_id: this.state.medications[0]?.id || "", dose: 1 }];
-    return `<div class="modal-backdrop" data-action="close-modal"><section class="modal wide" role="dialog" aria-modal="true" aria-label="Einnahme bearbeiten" data-modal-stop>
-      <div class="modal-head"><div><p class="eyebrow">EINNAHMEPLAN</p><h2>${item.id ? "Einnahme bearbeiten" : "Neue Einnahme"}</h2></div><button class="ghost icon-only" data-action="close-modal"><ha-icon icon="mdi:close"></ha-icon></button></div>
+    const days = this.days();
+    return `<div class="modal-backdrop"><section class="modal wide" role="dialog" aria-modal="true" aria-label="${this.t("reg_form.dialog_label")}" data-modal-stop>
+      <div class="modal-head"><div><p class="eyebrow">${this.t("reg_form.eyebrow")}</p><h2>${this.t(item.id ? "reg_form.edit_title" : "reg_form.new_title")}</h2></div><button class="ghost icon-only" data-action="close-modal" title="${this.t("common.cancel")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
       <form data-form="regimen"><input type="hidden" name="id" value="${esc(item.id || "")}"><div class="form-grid">
-        ${this.field("name", "Bezeichnung", item.name, true, "z. B. Mittagsmedikation")}<label class="field"><span>Status</span><select name="active"><option value="true" ${item.active !== false ? "selected" : ""}>Aktiv</option><option value="false" ${item.active === false ? "selected" : ""}>Pausiert</option></select></label>
-        <div class="field full"><span>Medikamente & Dosis</span><div class="item-editor">${items.map((dose, index) => this.doseRow(dose, index)).join("")}</div><button type="button" class="text add-dose" data-action="add-dose"><ha-icon icon="mdi:plus"></ha-icon>Weiteres Medikament</button></div>
-        <label class="field"><span>Rhythmus</span><select name="schedule_type"><option value="weekly" ${schedule.type === "weekly" ? "selected" : ""}>Wöchentlich nach Wochentag</option><option value="interval" ${schedule.type === "interval" ? "selected" : ""}>Alle x Tage</option></select></label>
-        ${this.field("repeat_minutes", "Erneut erinnern nach (Min.)", item.repeat_minutes ?? 30, true, "", "number", "5", "1")}
-        <div class="field full schedule-weekly ${schedule.type === "weekly" ? "" : "hidden"}"><span>Wochentage und Uhrzeiten</span><div class="week-grid">${DAYS.map((day, index) => { const times = schedule.type === "weekly" ? schedule.days?.[index] || schedule.days?.[String(index)] || [] : []; return `<label><input type="checkbox" name="day_${index}" ${times.length ? "checked" : ""}><b>${day}</b><input type="text" name="times_${index}" value="${esc(times.join(", ") || (index < 5 ? "13:00" : "11:00"))}" placeholder="13:00, 20:00"></label>`; }).join("")}</div><small>Mehrere Uhrzeiten mit Komma trennen.</small></div>
-        <div class="field full schedule-interval ${schedule.type === "interval" ? "" : "hidden"}"><span>Intervall</span><div class="inline-fields">${this.field("every_days", "Alle x Tage", schedule.every_days || 2, true, "", "number", "1", "1")}${this.field("start_date", "Startdatum", schedule.start_date || new Date().toISOString().slice(0,10), true, "", "date")}${this.field("interval_time", "Uhrzeit", schedule.time || "13:00", true, "", "time")}</div></div>
-        <label class="field full"><span>Benachrichtigungsdienste</span><input name="notify_services" list="notify-services" value="${esc((item.notify_services || []).join(", "))}" placeholder="notify.mobile_app_mein_handy"><datalist id="notify-services">${this.state.notify_services.map((service) => `<option value="${esc(service)}"></option>`).join("")}</datalist><small>Mehrere Dienste mit Komma trennen. Aktionsbuttons werden automatisch ergänzt.</small></label>
-        <label class="field full"><span>Scripts bei jeder Erinnerung</span><input name="scripts" list="scripts" value="${esc((item.scripts || []).join(", "))}" placeholder="script.medikamenten_erinnerung"><datalist id="scripts">${this.state.scripts.map((script) => `<option value="${esc(script)}"></option>`).join("")}</datalist></label>
-        <label class="field full"><span>Einnahmehinweis</span><textarea name="instructions" rows="2" placeholder="z. B. Mit einem Glas Wasser und zum Essen">${esc(item.instructions || "")}</textarea></label>
-      </div><div class="modal-actions"><button type="button" class="ghost" data-action="close-modal">Abbrechen</button><button class="primary" type="submit" ${this.state.medications.length ? "" : "disabled"}><ha-icon icon="mdi:content-save-outline"></ha-icon>Plan speichern</button></div></form>
+        ${this.field("name", this.t("reg_form.name"), item.name, true, this.t("reg_form.name_placeholder"))}<label class="field"><span>${this.t("reg_form.status")}</span><select name="active"><option value="true" ${item.active !== false ? "selected" : ""}>${this.t("common.active")}</option><option value="false" ${item.active === false ? "selected" : ""}>${this.t("common.paused")}</option></select></label>
+        <div class="field full"><span>${this.t("reg_form.medications_dose")}</span><div class="item-editor">${items.map((dose, index) => this.doseRow(dose, index)).join("")}</div><button type="button" class="text add-dose" data-action="add-dose"><ha-icon icon="mdi:plus"></ha-icon>${this.t("reg_form.add_medication")}</button></div>
+        <label class="field"><span>${this.t("reg_form.rhythm")}</span><select name="schedule_type"><option value="weekly" ${schedule.type === "weekly" ? "selected" : ""}>${this.t("reg_form.weekly")}</option><option value="interval" ${schedule.type === "interval" ? "selected" : ""}>${this.t("reg_form.interval")}</option></select></label>
+        ${this.field("repeat_minutes", this.t("reg_form.repeat"), item.repeat_minutes ?? 30, true, "", "number", "5", "1")}
+        <div class="field full schedule-weekly ${schedule.type === "weekly" ? "" : "hidden"}"><span>${this.t("reg_form.weekdays_times")}</span><div class="week-grid">${days.map((day, index) => { const times = schedule.type === "weekly" ? schedule.days?.[index] || schedule.days?.[String(index)] || [] : []; return `<label><input type="checkbox" name="day_${index}" ${times.length ? "checked" : ""}><b>${day}</b><input type="text" name="times_${index}" value="${esc(times.join(", ") || (index < 5 ? "13:00" : "11:00"))}" placeholder="13:00, 20:00"></label>`; }).join("")}</div><small>${this.t("reg_form.multiple_times_help")}</small></div>
+        <div class="field full schedule-interval ${schedule.type === "interval" ? "" : "hidden"}"><span>${this.t("reg_form.interval_title")}</span><div class="inline-fields">${this.field("every_days", this.t("reg_form.every_days"), schedule.every_days || 2, true, "", "number", "1", "1")}${this.field("start_date", this.t("reg_form.start_date"), schedule.start_date || new Date().toISOString().slice(0,10), true, "", "date")}${this.field("interval_time", this.t("reg_form.time"), schedule.time || "13:00", true, "", "time")}</div></div>
+        <label class="field full"><span>${this.t("reg_form.notify_services")}</span><input name="notify_services" list="notify-services" value="${esc((item.notify_services || []).join(", "))}" placeholder="${this.t("reg_form.notify_placeholder")}"><datalist id="notify-services">${this.state.notify_services.map((service) => `<option value="${esc(service)}"></option>`).join("")}</datalist><small>${this.t("reg_form.notify_help")}</small></label>
+        <label class="field full"><span>${this.t("reg_form.scripts")}</span><input name="scripts" list="scripts" value="${esc((item.scripts || []).join(", "))}" placeholder="${this.t("reg_form.script_placeholder")}"><datalist id="scripts">${this.state.scripts.map((script) => `<option value="${esc(script)}"></option>`).join("")}</datalist></label>
+        <label class="field full"><span>${this.t("reg_form.instructions")}</span><textarea name="instructions" rows="2" placeholder="${this.t("reg_form.instructions_placeholder")}">${esc(item.instructions || "")}</textarea></label>
+      </div><div class="modal-actions"><button type="button" class="ghost" data-action="close-modal">${this.t("common.cancel")}</button><button class="primary" type="submit" ${this.state.medications.length ? "" : "disabled"}><ha-icon icon="mdi:content-save-outline"></ha-icon>${this.t("reg_form.save")}</button></div></form>
     </section></div>`;
   }
 
   doseRow(dose, index) {
-    return `<div class="dose-row"><select name="medication_${index}" required><option value="">Medikament wählen</option>${this.state.medications.map((med) => `<option value="${med.id}" ${med.id === dose.medication_id ? "selected" : ""}>${esc(med.name)} (${esc(med.unit)})</option>`).join("")}</select><input name="dose_${index}" type="number" min="0.001" step="0.001" value="${dose.dose}" required><button type="button" class="ghost icon-only" data-action="remove-dose" title="Entfernen"><ha-icon icon="mdi:close"></ha-icon></button></div>`;
+    return `<div class="dose-row"><select name="medication_${index}" required><option value="">${this.t("reg_form.choose_medication")}</option>${this.state.medications.map((med) => `<option value="${med.id}" ${med.id === dose.medication_id ? "selected" : ""}>${esc(med.name)} (${esc(med.unit)})</option>`).join("")}</select><input name="dose_${index}" type="number" min="0.001" step="0.001" value="${dose.dose}" required><button type="button" class="ghost icon-only" data-action="remove-dose" title="${this.t("reg_form.remove")}"><ha-icon icon="mdi:close"></ha-icon></button></div>`;
   }
 
   field(name, label, value = "", required = false, placeholder = "", type = "text", min = "", step = "") {
@@ -275,9 +328,8 @@ class MedicationReminderPanel extends HTMLElement {
   }
 
   onClick(event) {
-    const button = event.target.closest("button, [data-action='close-modal']");
+    const button = event.target.closest("button");
     if (!button) return;
-    if (button.hasAttribute("data-modal-stop") || event.target.closest("[data-modal-stop]") && button.classList.contains("modal-backdrop")) return;
     if (button.dataset.tab) { this.activeTab = button.dataset.tab; this.render(); return; }
     const action = button.dataset.action;
     const id = button.dataset.id;
@@ -286,27 +338,27 @@ class MedicationReminderPanel extends HTMLElement {
     if (action === "new-medication") { this.modal = { type: "medication", item: {} }; this.render(); return; }
     if (action === "edit-medication") { this.modal = { type: "medication", item: this.medication(id) }; this.render(); return; }
     if (action === "new-regimen") {
-      if (!this.state.medications.length) { this.showToast("Lege zuerst mindestens ein Medikament an.", true); this.modal = { type: "medication", item: {} }; this.render(); return; }
+      if (!this.state.medications.length) { this.showToast(this.t("error.create_medication_first"), true); this.modal = { type: "medication", item: {} }; this.render(); return; }
       this.modal = { type: "regimen", item: {} }; this.render(); return;
     }
     if (action === "edit-regimen") { this.modal = { type: "regimen", item: this.regimen(id) }; this.render(); return; }
-    if (action === "delete-medication" && confirm("Dieses Medikament wirklich löschen?")) return this.mutate(() => this.call("delete_medication", { id }), "Medikament gelöscht.");
-    if (action === "delete-regimen" && confirm("Diesen Einnahmeplan wirklich löschen? Offene Vorgänge werden ebenfalls entfernt.")) return this.mutate(() => this.call("delete_regimen", { id }), "Einnahmeplan gelöscht.");
+    if (action === "delete-medication" && confirm(this.t("confirm.delete_medication"))) return this.mutate(() => this.call("delete_medication", { medication_id: id }), this.t("action.medication_deleted"));
+    if (action === "delete-regimen" && confirm(this.t("confirm.delete_regimen"))) return this.mutate(() => this.call("delete_regimen", { regimen_id: id }), this.t("action.regimen_deleted"));
     if (action === "adjust-stock") {
-      const value = prompt("Bestandsänderung eingeben (z. B. 20 oder -2):", "1");
-      if (value !== null && Number.isFinite(Number(value)) && Number(value) !== 0) return this.mutate(() => this.call("adjust_stock", { id, delta: Number(value) }), "Bestand aktualisiert.");
+      const value = prompt(this.t("prompt.stock"), "1");
+      if (value !== null && Number.isFinite(Number(value)) && Number(value) !== 0) return this.mutate(() => this.call("adjust_stock", { medication_id: id, delta: Number(value) }), this.t("action.stock_updated"));
       return;
     }
     if (action === "take-selected") return this.takeSelected(id, button.closest(".ticket"));
-    if (action === "snooze") return this.mutate(() => this.call("snooze", { id, minutes: Number(button.dataset.minutes) }), "Erinnerung verschoben.");
+    if (action === "snooze") return this.mutate(() => this.call("snooze", { occurrence_id: id, minutes: Number(button.dataset.minutes) }), this.t("action.reminder_snoozed"));
     if (action === "snooze-custom") {
       const input = this.shadowRoot.querySelector(`[data-snooze-time="${id}"]`);
-      if (!input?.value) return this.showToast("Bitte zuerst eine Uhrzeit auswählen.", true);
+      if (!input?.value) return this.showToast(this.t("error.select_time"), true);
       const until = new Date(input.value);
-      if (until <= new Date()) return this.showToast("Die Schlummerzeit muss in der Zukunft liegen.", true);
-      return this.mutate(() => this.call("snooze", { id, until: until.toISOString() }), "Erinnerung bis zur gewählten Zeit verschoben.");
+      if (until <= new Date()) return this.showToast(this.t("error.future_snooze"), true);
+      return this.mutate(() => this.call("snooze", { occurrence_id: id, until: until.toISOString() }), this.t("action.reminder_snoozed_until"));
     }
-    if (action === "skip" && confirm("Diese Einnahme auslassen? Der Bestand wird nicht verändert.")) return this.mutate(() => this.call("skip", { id }), "Einnahme als ausgelassen markiert.");
+    if (action === "skip" && confirm(this.t("confirm.skip"))) return this.mutate(() => this.call("skip", { occurrence_id: id }), this.t("action.intake_skipped"));
     if (action === "add-dose") { this.addDoseRow(button); return; }
     if (action === "remove-dose") { if (button.closest(".item-editor").children.length > 1) button.closest(".dose-row").remove(); return; }
   }
@@ -316,8 +368,8 @@ class MedicationReminderPanel extends HTMLElement {
     ticket.querySelectorAll("[data-medication]").forEach((checkbox) => {
       if (checkbox.checked) doses[checkbox.dataset.medication] = Number(ticket.querySelector(`[data-dose="${checkbox.dataset.medication}"]`).value);
     });
-    if (!Object.values(doses).some((value) => value > 0)) return this.showToast("Wähle mindestens eine Dosis aus.", true);
-    return this.mutate(() => this.call("record_intake", { id, doses }), "Einnahme gespeichert und Bestand abgebucht.");
+    if (!Object.values(doses).some((value) => value > 0)) return this.showToast(this.t("error.select_dose"), true);
+    return this.mutate(() => this.call("record_intake", { occurrence_id: id, doses }), this.t("action.intake_recorded"));
   }
 
   addDoseRow(button) {
@@ -344,12 +396,12 @@ class MedicationReminderPanel extends HTMLElement {
       const medication = Object.fromEntries(data.entries());
       medication.stock = Number(medication.stock); medication.low_stock_threshold = Number(medication.low_stock_threshold);
       if (!medication.id) delete medication.id;
-      return this.mutate(() => this.call("save_medication", { medication }), "Medikament gespeichert.");
+      return this.mutate(() => this.call("save_medication", { medication }), this.t("action.medication_saved"));
     }
     if (form.dataset.form === "regimen") {
       try {
         const regimen = this.regimenFromForm(form, data);
-        return this.mutate(() => this.call("save_regimen", { regimen }), "Einnahmeplan gespeichert.");
+        return this.mutate(() => this.call("save_regimen", { regimen }), this.t("action.regimen_saved"));
       } catch (error) { this.showToast(error.message, true); }
     }
   }
@@ -357,17 +409,18 @@ class MedicationReminderPanel extends HTMLElement {
   regimenFromForm(form, data) {
     const rows = [...form.querySelectorAll(".dose-row")];
     const items = rows.map((row) => ({ medication_id: row.querySelector("select").value, dose: Number(row.querySelector("input").value) }));
-    if (new Set(items.map((item) => item.medication_id)).size !== items.length) throw new Error("Ein Medikament darf pro Plan nur einmal vorkommen.");
+    if (new Set(items.map((item) => item.medication_id)).size !== items.length) throw new Error(this.t("error.duplicate_medication"));
     let schedule;
     if (data.get("schedule_type") === "weekly") {
       const days = {};
-      DAYS.forEach((_, index) => {
+      const dayNames = this.days();
+      dayNames.forEach((_, index) => {
         if (!form.elements[`day_${index}`].checked) return;
         const times = form.elements[`times_${index}`].value.split(",").map((v) => v.trim()).filter(Boolean);
-        if (!times.length || times.some((time) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))) throw new Error(`Ungültige Uhrzeit bei ${DAYS[index]}.`);
+        if (!times.length || times.some((time) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))) throw new Error(this.t("error.invalid_time", { day: dayNames[index] }));
         days[index] = times;
       });
-      if (!Object.keys(days).length) throw new Error("Wähle mindestens einen Wochentag.");
+      if (!Object.keys(days).length) throw new Error(this.t("error.select_weekday"));
       schedule = { type: "weekly", days };
     } else schedule = { type: "interval", every_days: Number(data.get("every_days")), start_date: data.get("start_date"), time: data.get("interval_time") };
     const split = (name) => String(data.get(name) || "").split(",").map((v) => v.trim()).filter(Boolean);

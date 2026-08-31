@@ -19,6 +19,5 @@ class MedicationReminderConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
         if user_input is not None:
-            return self.async_create_entry(title="Medikamentenplan", data={})
+            return self.async_create_entry(title="Medication schedule", data={})
         return self.async_show_form(step_id="user")
-

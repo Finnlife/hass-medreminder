@@ -24,6 +24,7 @@ from .const import (
     STORAGE_KEY,
     STORAGE_VERSION,
 )
+from .localization import translate
 from .models import (
     empty_data,
     normalize_medication,
@@ -329,23 +330,34 @@ class MedicationManager:
     async def _async_notify(self, regimen: dict[str, Any], occurrence: dict[str, Any]) -> None:
         names = {item["id"]: item["name"] for item in self.data["medications"]}
         lines = [
-            f"{item['planned_dose'] - item['taken_dose']:g} × {names.get(item['medication_id'], 'Medikament')}"
+            f"{item['planned_dose'] - item['taken_dose']:g} × "
+            f"{names.get(item['medication_id'], translate(self.hass, 'notification.unknown_medication'))}"
             for item in occurrence["items"]
             if item["taken_dose"] < item["planned_dose"]
         ]
         occurrence_id = occurrence["id"]
         path = f"/{DOMAIN}?occurrence={occurrence_id}"
         service_data = {
-            "title": "Medikamenteneinnahme",
+            "title": translate(self.hass, "notification.title"),
             "message": f"{regimen['name']}: " + ", ".join(lines),
             "data": {
                 "tag": f"{DOMAIN}_{occurrence_id}",
                 "url": path,
                 "clickAction": path,
                 "actions": [
-                    {"action": f"MED_TAKE_{occurrence_id}", "title": "Alles genommen"},
-                    {"action": f"MED_SNOOZE30_{occurrence_id}", "title": "30 Min. später"},
-                    {"action": "URI", "title": "Details", "uri": path},
+                    {
+                        "action": f"MED_TAKE_{occurrence_id}",
+                        "title": translate(self.hass, "notification.take_all"),
+                    },
+                    {
+                        "action": f"MED_SNOOZE30_{occurrence_id}",
+                        "title": translate(self.hass, "notification.snooze_30"),
+                    },
+                    {
+                        "action": "URI",
+                        "title": translate(self.hass, "notification.details"),
+                        "uri": path,
+                    },
                 ],
             },
         }

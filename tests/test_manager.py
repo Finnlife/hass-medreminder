@@ -66,8 +66,18 @@ class FakeBus:
     def async_fire(self, event, data): self.events.append((event, data))
 
 
+class FakeServices:
+    def __init__(self): self.calls = []
+    def has_service(self, _domain, _service): return True
+    async def async_call(self, domain, service, data, blocking=False):
+        self.calls.append((domain, service, data, blocking))
+
+
 class FakeHass:
-    def __init__(self): self.bus = FakeBus()
+    def __init__(self, language="en"):
+        self.bus = FakeBus()
+        self.services = FakeServices()
+        self.config = types.SimpleNamespace(language=language)
 
 
 class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
@@ -114,6 +124,32 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
     def test_nan_medication_value_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             models_module.normalize_medication({"name": "A", "stock": "nan"})
+
+    async def test_notification_payload_uses_configured_language(self) -> None:
+        manager = self.manager_with_occurrence(second_stock=10)
+        manager.hass.config.language = "de-DE"
+        regimen = {
+            "name": "Mittagsplan",
+            "notify_services": ["notify.phone"],
+            "scripts": [],
+        }
+        await manager._async_notify(regimen, manager.data["occurrences"][0])
+        payload = manager.hass.services.calls[0][2]
+        self.assertEqual("Medikamenteneinnahme", payload["title"])
+        self.assertEqual("Alles genommen", payload["data"]["actions"][0]["title"])
+
+    async def test_notification_payload_defaults_to_english(self) -> None:
+        manager = self.manager_with_occurrence(second_stock=10)
+        manager.hass.config.language = "fr"
+        regimen = {
+            "name": "Lunch schedule",
+            "notify_services": ["notify.phone"],
+            "scripts": [],
+        }
+        await manager._async_notify(regimen, manager.data["occurrences"][0])
+        payload = manager.hass.services.calls[0][2]
+        self.assertEqual("Medication intake", payload["title"])
+        self.assertEqual("Mark all taken", payload["data"]["actions"][0]["title"])
 
 
 if __name__ == "__main__":

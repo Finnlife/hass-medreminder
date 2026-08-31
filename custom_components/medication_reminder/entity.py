@@ -46,12 +46,12 @@ class MedicationEntity(MedicationReminderEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        medication = self.medication or {"name": "Gelöschtes Medikament"}
+        medication = self.medication or {"name": "Deleted medication"}
         info = DeviceInfo(
             identifiers={(DOMAIN, self.medication_id)},
             name=medication["name"],
             manufacturer=medication.get("manufacturer") or None,
-            model=medication.get("form") or "Medikament",
+            model=medication.get("form") or "Medication",
         )
         if medication.get("barcode"):
             info["serial_number"] = medication["barcode"]
@@ -62,9 +62,9 @@ def service_device_info() -> DeviceInfo:
     """Return the integration's service device descriptor."""
     return DeviceInfo(
         identifiers={(DOMAIN, DOMAIN)},
-        name="Medikamentenplan",
+        name="Medication schedule",
         manufacturer="Medication Reminder",
-        model="Lokale Verwaltung",
+        model="Local management",
+        translation_key="medication_schedule",
         entry_type=DeviceEntryType.SERVICE,
     )
-

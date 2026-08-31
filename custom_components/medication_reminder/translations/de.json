@@ -10,5 +10,66 @@
     "abort": {
       "already_configured": "Die Medikamenten-Erinnerung ist bereits eingerichtet."
     }
+  },
+  "device": {
+    "medication_schedule": {
+      "name": "Medikamentenplan"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "stock": { "name": "Bestand" },
+      "next_intake": { "name": "Nächste Einnahme" },
+      "pending_intakes": { "name": "Offene Einnahmen" },
+      "last_intake": { "name": "Letzte Einnahme" }
+    },
+    "binary_sensor": {
+      "low_stock": { "name": "Niedriger Bestand" },
+      "overdue_intakes": { "name": "Überfällige Einnahmen" }
+    }
+  },
+  "services": {
+    "record_intake": {
+      "name": "Einnahme erfassen",
+      "description": "Erfasst eine vollständige oder teilweise Medikamenteneinnahme.",
+      "fields": {
+        "occurrence_id": {
+          "name": "Vorgangs-ID",
+          "description": "ID des fälligen Einnahmevorgangs."
+        },
+        "doses": {
+          "name": "Dosen",
+          "description": "Optionale Zuordnung von Medikamenten-IDs zu den tatsächlich eingenommenen Mengen."
+        }
+      }
+    },
+    "snooze": {
+      "name": "Erinnerung schlummern",
+      "description": "Verschiebt eine offene Erinnerung.",
+      "fields": {
+        "occurrence_id": {
+          "name": "Vorgangs-ID",
+          "description": "ID des offenen Einnahmevorgangs."
+        },
+        "minutes": {
+          "name": "Minuten",
+          "description": "Anzahl der Minuten, um die die Erinnerung verschoben wird."
+        }
+      }
+    },
+    "adjust_stock": {
+      "name": "Bestand anpassen",
+      "description": "Addiert eine positive oder negative Menge zum Medikamentenbestand.",
+      "fields": {
+        "medication_id": {
+          "name": "Medikamenten-ID",
+          "description": "ID des Medikaments, dessen Bestand geändert werden soll."
+        },
+        "delta": {
+          "name": "Änderung",
+          "description": "Positive oder negative Menge, die zum aktuellen Bestand addiert wird."
+        }
+      }
+    }
   }
 }
