@@ -55,7 +55,9 @@ class FrontendContractTests(unittest.TestCase):
         ):
             self.assertIn(f'this.call("{command}"', panel)
             self.assertIn(f'{command}"', backend)
-        self.assertIn('url.searchParams.set("scan"', panel)
+        self.assertNotIn("scanUrl(type, id)", panel)
+        self.assertIn('this.call("generate_qr", { value: scanCode })', panel)
+        self.assertIn("target?.scan_code", panel)
         self.assertIn('item.unplanned ? this.t("unplanned.history_name")', panel)
 
     def test_stock_badges_do_not_stretch_to_icon_height(self) -> None:

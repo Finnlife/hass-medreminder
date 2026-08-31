@@ -186,7 +186,9 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
             item for item in manager.data["packages"] if item["medication_id"] == "a"
         ]
         self.assertEqual("Apollo", created["nickname"])
+        self.assertRegex(created["scan_code"], r"^med[A-Z2-9]{5}$")
         self.assertEqual({"Legacy", "Apollo"}, {item["nickname"] for item in packages})
+        self.assertEqual(2, len({item["scan_code"] for item in packages}))
         self.assertEqual(15.0, manager.data["medications"][0]["stock"])
         self.assertEqual("packages", manager.data["medications"][0]["stock_mode"])
 

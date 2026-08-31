@@ -26,8 +26,9 @@ setup, **Medications** appears as a dedicated sidebar panel.
   unique nickname generated on request
 - Automatic stock calculated from packages, with FEFO recommendations and dose
   splitting across packages when one package is not enough
-- Locally generated QR codes for medications, packages, and open intake tickets;
-  scanning opens the corresponding app view and intake codes always require confirmation
+- Locally generated, high-contrast QR codes for medications, packages, and open
+  intake tickets; each contains only a stable eight-character identifier such as
+  `med7K2QF`, never a URL or medication data
 - Sensors, binary sensors, events, and actions for dashboards and automations
 - English by default, with German UI, entity, setup, action, and notification translations
 

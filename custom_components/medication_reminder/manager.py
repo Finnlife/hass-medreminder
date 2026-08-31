@@ -35,6 +35,7 @@ from .models import (
     public_data,
 )
 from .schedule import next_occurrence, occurrences_between
+from .scan_codes import generate_scan_code, used_scan_codes
 from .storage import MedicationStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -135,6 +136,11 @@ class MedicationManager:
                 if self._packages_for(existing["id"]):
                     normalized_raw["stock_mode"] = "packages"
             medication = normalize_medication(normalized_raw, medication_id)
+            medication["scan_code"] = (
+                existing.get("scan_code")
+                if existing and existing.get("scan_code")
+                else self._new_scan_code(f"medications:{medication['id']}")
+            )
             if medication["stock_mode"] == "packages":
                 medication["stock"] = self._package_stock(medication["id"])
             if existing:
@@ -198,6 +204,11 @@ class MedicationManager:
                     else self._next_package_nickname(medication_id)
                 )
             package = normalize_package(normalized_raw, medication_id, existing)
+            package["scan_code"] = (
+                existing.get("scan_code")
+                if existing and existing.get("scan_code")
+                else self._new_scan_code(f"packages:{package['id']}")
+            )
             if any(
                 other["medication_id"] == medication_id
                 and other["id"] != package["id"]
@@ -321,6 +332,9 @@ class MedicationManager:
                 "reminders_sent": 0,
                 "completed_by": None,
             }
+            occurrence["scan_code"] = self._new_scan_code(
+                f"occurrences:{occurrence['id']}"
+            )
             complete = self._record_intake_locked(
                 occurrence, None, user_id, recorded_at=actual
             )
@@ -591,6 +605,7 @@ class MedicationManager:
             medication["id"],
         )
         package["created_at"] = dt_util.now().isoformat()
+        package["scan_code"] = self._new_scan_code(f"packages:{package['id']}")
         self.data["packages"].append(package)
 
     def _next_package_nickname(self, medication_id: str) -> str:
@@ -633,6 +648,9 @@ class MedicationManager:
                     key = (regimen["id"], scheduled.isoformat())
                     if key not in known:
                         ticket = occurrence_for(regimen, scheduled)
+                        ticket["scan_code"] = self._new_scan_code(
+                            f"occurrences:{ticket['id']}"
+                        )
                         self.data["occurrences"].append(ticket)
                         created.append(ticket)
                         known.add(key)
@@ -825,6 +843,10 @@ class MedicationManager:
         if item is None:
             raise ValueError(f"Unknown {collection.rstrip('s')}")
         return item
+
+    def _new_scan_code(self, seed: str) -> str:
+        """Allocate a compact code without changing any existing assignment."""
+        return generate_scan_code(seed, used_scan_codes(self.data))
 
 
 def _parse_optional_datetime(value: str | None) -> datetime | None:

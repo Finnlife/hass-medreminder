@@ -87,8 +87,8 @@ phone renders and returns notification actions correctly.
   forward and confirm reminders resume.
 - Skip an intake and confirm stock remains unchanged.
 - Reuse an old notification action and confirm stock is not deducted twice.
-- Generate and scan medication, package, and intake QR codes. Verify highlighting,
-  navigation, and that an intake scan never deducts stock without confirmation.
+- Generate medication, package, and intake QR codes. Verify that each scanned
+  payload is exactly `med` plus five unambiguous letters/digits and contains no URL.
 - Restart Home Assistant with open, snoozed, and completed tickets; verify storage,
   due generation, package allocation snapshots, and history.
 - Check global, medication, and package entities, action schemas, events, desktop

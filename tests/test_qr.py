@@ -17,12 +17,13 @@ spec.loader.exec_module(qr)
 class QrTests(unittest.TestCase):
     """Protect the local scan-code contract."""
 
-    def test_scan_link_becomes_embedded_svg(self) -> None:
-        value = "https://example.test/medication_reminder?scan=package:abc"
+    def test_short_identifier_becomes_simple_version_one_svg(self) -> None:
+        value = "med7K2QF"
         result = qr.qr_data_uri(value)
         self.assertTrue(result.startswith("data:image/svg+xml"))
         self.assertIn("%3Csvg", result)
         self.assertGreater(len(result), 500)
+        self.assertEqual(1, qr.segno.make_qr(value, error="q").version)
 
     def test_empty_and_oversized_values_are_rejected(self) -> None:
         for value in ("", "x" * 2049):

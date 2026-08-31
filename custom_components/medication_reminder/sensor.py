@@ -98,6 +98,7 @@ class MedicationStockSensor(MedicationEntity, SensorEntity):
             "barcode": self.medication.get("barcode"),
             "strength": self.medication.get("strength"),
             "stock_mode": self.medication.get("stock_mode", "manual"),
+            "scan_code": self.medication.get("scan_code"),
             "package_count": len(
                 [
                     package
@@ -158,6 +159,7 @@ class MedicationPackageStockSensor(MedicationEntity, SensorEntity):
             "expires_on": self.package.get("expires_on"),
             "initial_quantity": self.package["initial_quantity"],
             "external_code": self.package.get("external_code"),
+            "scan_code": self.package.get("scan_code"),
         }
 
 
@@ -219,7 +221,12 @@ class PendingIntakesSensor(MedicationReminderEntity, SensorEntity):
                 item["id"]
                 for item in self.manager.data["occurrences"]
                 if item["status"] in ("pending", "partial")
-            ]
+            ],
+            "scan_codes": {
+                item["id"]: item.get("scan_code")
+                for item in self.manager.data["occurrences"]
+                if item["status"] in ("pending", "partial")
+            },
         }
 
 

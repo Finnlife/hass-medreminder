@@ -6,6 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 from .const import STORAGE_MINOR_VERSION, STORAGE_VERSION
+from .scan_codes import ensure_scan_codes
 
 
 def migrate_storage(
@@ -40,4 +41,5 @@ def ensure_current_data(raw: dict[str, Any] | None) -> dict[str, Any]:
         occurrence.setdefault("regimen_name", None)
         for item in occurrence.get("items", []):
             item.setdefault("allocations", [])
+    ensure_scan_codes(data)
     return data

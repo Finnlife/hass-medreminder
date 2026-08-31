@@ -86,8 +86,9 @@ Darstellung und Rückmeldung einer echten Smartphone-Notification.
 - 30/60/120 Minuten und freie Uhrzeit schlummern; Wiederbeginn prüfen.
 - Einnahme auslassen und unveränderten Bestand prüfen.
 - Alte Notification-Aktion erneut auslösen; keine doppelte Abbuchung zulassen.
-- QR-Codes für Medikament, Packung und Einnahme erzeugen und scannen. Navigation,
-  Hervorhebung und Bestätigung vor jeder Bestandsabbuchung prüfen.
+- QR-Codes für Medikament, Packung und Einnahme erzeugen und scannen. Jede Nutzlast
+  muss exakt aus `med` plus fünf eindeutigen Buchstaben/Ziffern bestehen und darf
+  keine URL enthalten.
 - Home Assistant mit offenen, schlummernden und erledigten Tickets neu starten;
   Persistenz, Nacherzeugung, Packungs-Snapshots und Verlauf prüfen.
 - Globale, Medikamenten- und Packungsentitäten, Aktionsschemata, Events sowie

@@ -27,8 +27,9 @@ bei deutscher Home-Assistant-Sprache vollständig deutsch dargestellt.
   wählbarem, eindeutigem Spitznamen
 - Automatisch aus Packungen berechneter Bestand, FEFO-Empfehlung nach nächstem MHD
   und Aufteilung einer Dosis auf mehrere Packungen
-- Lokal erzeugte QR-Codes für Medikamente, Packungen und offene Einnahmen; ein
-  Einnahmecode öffnet immer zuerst die Bestätigung in der App
+- Lokal erzeugte, kontrastreiche QR-Codes für Medikamente, Packungen und offene
+  Einnahmen; sie enthalten ausschließlich eine stabile achtstellige Kennung wie
+  `med7K2QF`, niemals eine URL oder Medikamentendaten
 - Sensoren, Binärsensoren, Events und Aktionen für Dashboards und Automationen
 - Englisch als Entwicklungssprache und Standard, Deutsch als vollständige Übersetzung
 
