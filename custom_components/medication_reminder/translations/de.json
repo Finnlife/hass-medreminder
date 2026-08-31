@@ -1,0 +1,14 @@
+{
+  "title": "Medikamenten-Erinnerung",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Medikamentenplan einrichten",
+        "description": "Erstellt die lokale Medikamentenverwaltung und den Sidebar-Eintrag. Alle Daten bleiben in Home Assistant."
+      }
+    },
+    "abort": {
+      "already_configured": "Die Medikamenten-Erinnerung ist bereits eingerichtet."
+    }
+  }
+}

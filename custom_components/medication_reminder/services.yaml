@@ -1,0 +1,48 @@
+record_intake:
+  name: Einnahme erfassen
+  description: Erfasst eine vollständige oder teilweise Medikamenteneinnahme.
+  fields:
+    occurrence_id:
+      name: Vorgangs-ID
+      required: true
+      selector:
+        text:
+    doses:
+      name: Dosen
+      description: Optionale Zuordnung von Medikamenten-ID zu eingenommener Menge.
+      selector:
+        object:
+snooze:
+  name: Erinnerung schlummern
+  description: Verschiebt eine offene Erinnerung.
+  fields:
+    occurrence_id:
+      name: Vorgangs-ID
+      required: true
+      selector:
+        text:
+    minutes:
+      name: Minuten
+      required: true
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 10080
+          mode: box
+adjust_stock:
+  name: Bestand anpassen
+  description: Addiert eine positive oder negative Menge zum Bestand.
+  fields:
+    medication_id:
+      name: Medikamenten-ID
+      required: true
+      selector:
+        text:
+    delta:
+      name: Änderung
+      required: true
+      selector:
+        number:
+          mode: box
+
