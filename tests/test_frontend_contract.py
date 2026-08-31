@@ -58,6 +58,13 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn('url.searchParams.set("scan"', panel)
         self.assertIn('item.unplanned ? this.t("unplanned.history_name")', panel)
 
+    def test_stock_badges_do_not_stretch_to_icon_height(self) -> None:
+        panel = PANEL.read_text(encoding="utf-8")
+        self.assertIn(
+            ".stock-top{display:flex;align-items:flex-start;justify-content:space-between}",
+            panel,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
