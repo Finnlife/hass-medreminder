@@ -70,6 +70,32 @@
           "description": "Positive oder negative Menge, die zum aktuellen Bestand addiert wird."
         }
       }
+    },
+    "add_package": {
+      "name": "Packung hinzufügen",
+      "description": "Fügt eine physische Packung hinzu und stellt das Medikament auf automatischen Packungsbestand um.",
+      "fields": {
+        "medication_id": { "name": "Medikamenten-ID", "description": "Medikament in dieser Packung." },
+        "quantity": { "name": "Menge", "description": "Anfangsmenge in der Packung." },
+        "nickname": { "name": "Spitzname", "description": "Optionaler einprägsamer Packungsname; wird leer automatisch erzeugt." },
+        "lot_number": { "name": "LOT-Nummer", "description": "LOT- oder Chargennummer des Herstellers." },
+        "expires_on": { "name": "MHD", "description": "Mindesthaltbarkeits- oder Verfallsdatum." },
+        "external_code": { "name": "Externer Code", "description": "Optionaler Barcode-, QR- oder DataMatrix-Inhalt auf der Packung." }
+      }
+    },
+    "record_unplanned_intake": {
+      "name": "Ungeplante Einnahme erfassen",
+      "description": "Erfasst eine Einnahme außerhalb eines Plans und bucht Bestand nach FEFO ab.",
+      "fields": {
+        "items": { "name": "Medikamente und Dosen", "description": "Liste aus Objekten mit medication_id und dose." }
+      }
+    },
+    "postpone_interval": {
+      "name": "Intervall-Einnahme auf morgen verschieben",
+      "description": "Verschiebt eine fällige Intervall-Einnahme auf morgen und alle folgenden Termine um dieselbe Tageszahl.",
+      "fields": {
+        "occurrence_id": { "name": "Vorgangs-ID", "description": "ID der fälligen, noch unberührten Intervall-Einnahme." }
+      }
     }
   }
 }

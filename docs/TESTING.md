@@ -73,17 +73,26 @@ phone renders and returns notification actions correctly.
   or Cancel button.
 - Create, edit, and delete medications with all optional metadata.
 - Adjust stock positively and negatively; reject negative resulting stock.
+- Add multiple packages with different expiry dates and LOT numbers. Verify that
+  stock is their sum, nicknames are unique, and the earliest expiry is recommended.
+- Record a dose larger than the first package remainder. Verify a split across the
+  two earliest packages and matching immutable allocation details in history.
+- Record an unplanned multi-medication intake and verify atomic stock deduction.
 - Create a weekday/weekend schedule and an every-x-days schedule.
+- Move a due every-x-days intake to tomorrow and verify both its ticket and all
+  following cycle dates shift, while weekly schedules reject this action.
 - Trigger a due intake with multiple medications and verify repeated reminders.
 - Record all doses, a partial selection, and the remaining selection later.
 - Verify 30/60/120-minute and custom-time snooze, then wait or move the test time
   forward and confirm reminders resume.
 - Skip an intake and confirm stock remains unchanged.
 - Reuse an old notification action and confirm stock is not deducted twice.
+- Generate and scan medication, package, and intake QR codes. Verify highlighting,
+  navigation, and that an intake scan never deducts stock without confirmation.
 - Restart Home Assistant with open, snoozed, and completed tickets; verify storage,
-  due generation, and history.
-- Check global and medication entities, action schemas, events, desktop layout, and
-  a narrow mobile viewport.
+  due generation, package allocation snapshots, and history.
+- Check global, medication, and package entities, action schemas, events, desktop
+  layout, and a narrow mobile viewport.
 
 The physical delivery and rendering of a Companion App notification is the only
 step that requires a real device and human confirmation. Codex can verify the

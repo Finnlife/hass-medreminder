@@ -13,11 +13,20 @@ bei deutscher Home-Assistant-Sprache vollständig deutsch dargestellt.
   Bestandseinheit, Bestand, Warnschwelle und Notizen
 - Wochenpläne mit eigener Uhrzeit je Wochentag und mehreren Uhrzeiten pro Tag
 - Intervallpläne alle x Tage ab einem frei wählbaren Startdatum
+- Eine fällige Intervall-Einnahme auf morgen verschieben und damit den gesamten
+  zukünftigen Zyklus versetzen
 - Mehrere Medikamente und individuelle Dosen pro Einnahme
+- Ungeplante Einnahmen mit denselben Bestands- und Protokollgarantien
 - Wiederholte Erinnerungen über ausgewählte `notify.*`-Dienste und Scripts
 - Mobile Aktionen: alles genommen, 30 Minuten schlummern oder Details öffnen
 - Teil-Einnahmen, 30/60/120 Minuten und freie Uhrzeit zum Schlummern sowie Auslassen
 - Persistente Tickets, Soll-/Ist-Verlauf und Bestandsabbuchung erst bei Einnahme
+- Physische Packungen mit MHD, LOT/Charge, aufgedrucktem Code und automatisch
+  wählbarem, eindeutigem Spitznamen
+- Automatisch aus Packungen berechneter Bestand, FEFO-Empfehlung nach nächstem MHD
+  und Aufteilung einer Dosis auf mehrere Packungen
+- Lokal erzeugte QR-Codes für Medikamente, Packungen und offene Einnahmen; ein
+  Einnahmecode öffnet immer zuerst die Bestätigung in der App
 - Sensoren, Binärsensoren, Events und Aktionen für Dashboards und Automationen
 - Englisch als Entwicklungssprache und Standard, Deutsch als vollständige Übersetzung
 
@@ -44,17 +53,27 @@ Buttons anzeigen.
 
 Globale Entitäten bilden nächste, offene, letzte und überfällige Einnahmen ab.
 Jedes Medikament erzeugt zusätzlich einen Bestands-Sensor und einen
-Low-Stock-Binärsensor. Die endgültigen Entity-IDs vergibt Home Assistant.
+Low-Stock-Binärsensor. Jede physische Packung erhält einen eigenen Bestands-Sensor
+mit LOT, MHD, Anfangsmenge und aufgedrucktem Code als Attribute. Die endgültigen
+Entity-IDs vergibt Home Assistant.
 
-Aktionen: `medication_reminder.record_intake`, `medication_reminder.snooze` und
-`medication_reminder.adjust_stock`.
+Aktionen: `medication_reminder.record_intake`, `medication_reminder.snooze`,
+`medication_reminder.adjust_stock`, `medication_reminder.add_package`,
+`medication_reminder.record_unplanned_intake` und
+`medication_reminder.postpone_interval`.
 
 Events: `medication_reminder_due`, `medication_reminder_taken`,
-`medication_reminder_skipped` und `medication_reminder_low_stock`.
+`medication_reminder_skipped`, `medication_reminder_low_stock` und
+`medication_reminder_postponed`.
 
 Alle Daten bleiben lokal unter `.storage/medication_reminder.data`. Alte mobile
 Aktionen sind idempotent und buchen Bestand nicht doppelt ab. Bis zu 2.000
 abgeschlossene Vorgänge werden gespeichert; offene Vorgänge bleiben erhalten.
+Das Speicherschema ist versioniert; die aktuelle Migration ergänzt Packungen und
+Abbuchungs-Snapshots, ohne vorhandene Einnahmehistorie umzuschreiben. Das Projekt
+ist weiterhin vor Version 1.0. Vor 0.x-Updates sollte deshalb eine Sicherung von
+`.storage/medication_reminder.data` erstellt werden; der dauerhafte
+Kompatibilitätsvertrag gilt erst ab Version 1.0.
 
 ## Entwicklung und vollständiger Test
 

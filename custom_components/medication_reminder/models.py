@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime
+from datetime import date, datetime
 import math
 from typing import Any
 from uuid import uuid4
@@ -18,17 +18,30 @@ def new_id() -> str:
 
 def empty_data() -> dict[str, Any]:
     """Return a fresh storage payload."""
-    return {"medications": [], "regimens": [], "occurrences": []}
+    return {
+        "medications": [],
+        "packages": [],
+        "regimens": [],
+        "occurrences": [],
+        "last_generated_at": None,
+    }
 
 
-def normalize_medication(raw: dict[str, Any], existing_id: str | None = None) -> dict[str, Any]:
+def normalize_medication(
+    raw: dict[str, Any], existing_id: str | None = None
+) -> dict[str, Any]:
     """Validate and normalize a medication."""
     name = str(raw.get("name", "")).strip()
     if not name:
         raise ValueError("Name is required")
     unit = str(raw.get("unit", "pieces")).strip() or "pieces"
     stock = _non_negative_number(raw.get("stock", 0), "stock")
-    threshold = _non_negative_number(raw.get("low_stock_threshold", 0), "low_stock_threshold")
+    threshold = _non_negative_number(
+        raw.get("low_stock_threshold", 0), "low_stock_threshold"
+    )
+    stock_mode = str(raw.get("stock_mode", "manual"))
+    if stock_mode not in ("manual", "packages"):
+        raise ValueError("Unsupported stock mode")
     return {
         "id": existing_id or str(raw.get("id") or new_id()),
         "name": name,
@@ -38,8 +51,41 @@ def normalize_medication(raw: dict[str, Any], existing_id: str | None = None) ->
         "strength": str(raw.get("strength", "")).strip(),
         "unit": unit,
         "stock": stock,
+        "stock_mode": stock_mode,
         "low_stock_threshold": threshold,
         "notes": str(raw.get("notes", "")).strip(),
+    }
+
+
+def normalize_package(
+    raw: dict[str, Any], medication_id: str, existing: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Validate and normalize one physical medication package."""
+    nickname = str(raw.get("nickname", "")).strip()
+    lot_number = str(raw.get("lot_number", "")).strip()
+    expires_on = str(raw.get("expires_on", "")).strip()
+    if expires_on:
+        date.fromisoformat(expires_on)
+    remaining = _non_negative_number(
+        raw.get("remaining_quantity", raw.get("quantity", 0)), "remaining_quantity"
+    )
+    if existing is None and remaining <= 0:
+        raise ValueError("Package quantity must be greater than zero")
+    initial = (
+        max(float(existing["initial_quantity"]), remaining)
+        if existing
+        else _positive_number(raw.get("quantity", remaining), "quantity")
+    )
+    return {
+        "id": existing["id"] if existing else str(raw.get("id") or new_id()),
+        "medication_id": medication_id,
+        "nickname": nickname,
+        "lot_number": lot_number,
+        "expires_on": expires_on or None,
+        "external_code": str(raw.get("external_code", "")).strip(),
+        "initial_quantity": round(initial, 3),
+        "remaining_quantity": remaining,
+        "created_at": existing.get("created_at") if existing else None,
     }
 
 
@@ -69,7 +115,11 @@ def normalize_regimen(
         raise ValueError("At least one medication is required")
     schedule = _normalize_schedule(raw.get("schedule", {}))
     targets = sorted(
-        {str(value).strip() for value in raw.get("notify_services", []) if str(value).strip()}
+        {
+            str(value).strip()
+            for value in raw.get("notify_services", [])
+            if str(value).strip()
+        }
     )
     scripts = sorted(
         {str(value).strip() for value in raw.get("scripts", []) if str(value).strip()}
@@ -95,6 +145,8 @@ def occurrence_for(regimen: dict[str, Any], scheduled_at: datetime) -> dict[str,
     return {
         "id": new_id(),
         "regimen_id": regimen["id"],
+        "regimen_name": regimen["name"],
+        "unplanned": False,
         "scheduled_at": scheduled_at.isoformat(),
         "status": "pending",
         "items": [
@@ -102,6 +154,7 @@ def occurrence_for(regimen: dict[str, Any], scheduled_at: datetime) -> dict[str,
                 "medication_id": item["medication_id"],
                 "planned_dose": item["dose"],
                 "taken_dose": 0,
+                "allocations": [],
             }
             for item in regimen["items"]
         ],

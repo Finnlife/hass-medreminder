@@ -4,35 +4,38 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import logging
 import math
 from typing import Any
 
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_interval
-from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN,
     EVENT_DUE,
     EVENT_LOW_STOCK,
+    EVENT_POSTPONED,
     EVENT_SKIPPED,
     EVENT_TAKEN,
     MAX_HISTORY,
-    STORAGE_KEY,
-    STORAGE_VERSION,
+    PACKAGE_NICKNAMES,
 )
+from .migrations import ensure_current_data
 from .localization import translate
 from .models import (
     empty_data,
+    new_id,
     normalize_medication,
+    normalize_package,
     normalize_regimen,
     occurrence_for,
     public_data,
 )
 from .schedule import next_occurrence, occurrences_between
+from .storage import MedicationStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +45,7 @@ class MedicationManager:
 
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
-        self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+        self._store = MedicationStore(hass)
         self.data: dict[str, Any] = empty_data()
         self._lock = asyncio.Lock()
         self._listeners: set[Callable[[], None]] = set()
@@ -52,12 +55,8 @@ class MedicationManager:
     async def async_initialize(self) -> None:
         """Load storage and start listeners."""
         loaded = await self._store.async_load()
-        if loaded:
-            self.data = loaded
-        self.data.setdefault("medications", [])
-        self.data.setdefault("regimens", [])
-        self.data.setdefault("occurrences", [])
-        self.data.setdefault("last_generated_at", None)
+        self.data = ensure_current_data(loaded) if loaded else empty_data()
+        self._recalculate_all_package_stock()
         self._unsub_timer = async_track_time_interval(
             self.hass, self._async_tick, timedelta(seconds=30)
         )
@@ -90,6 +89,14 @@ class MedicationManager:
     def snapshot(self) -> dict[str, Any]:
         """Return state plus calculated dashboard data."""
         result = public_data(self.data)
+        for occurrence in result["occurrences"]:
+            if occurrence["status"] not in ("pending", "partial"):
+                continue
+            for item in occurrence["items"]:
+                remaining = round(item["planned_dose"] - item["taken_dose"], 3)
+                item["package_plan"] = self.package_plan(
+                    item["medication_id"], remaining, strict=False
+                )
         result["server_time"] = dt_util.now().isoformat()
         upcoming: list[dict[str, str]] = []
         now = dt_util.now()
@@ -98,7 +105,9 @@ class MedicationManager:
                 continue
             value = next_occurrence(regimen["schedule"], now)
             if value:
-                upcoming.append({"regimen_id": regimen["id"], "scheduled_at": value.isoformat()})
+                upcoming.append(
+                    {"regimen_id": regimen["id"], "scheduled_at": value.isoformat()}
+                )
         result["upcoming"] = sorted(upcoming, key=lambda item: item["scheduled_at"])
         result["notify_services"] = sorted(
             f"{domain}.{service}"
@@ -115,10 +124,23 @@ class MedicationManager:
         """Create or update a medication."""
         async with self._lock:
             medication_id = str(raw.get("id", "")) or None
-            existing = self._find("medications", medication_id) if medication_id else None
-            medication = normalize_medication(raw, medication_id)
+            existing = (
+                self._find("medications", medication_id) if medication_id else None
+            )
+            normalized_raw = dict(raw)
             if existing:
-                self.data["medications"][self.data["medications"].index(existing)] = medication
+                normalized_raw.setdefault(
+                    "stock_mode", existing.get("stock_mode", "manual")
+                )
+                if self._packages_for(existing["id"]):
+                    normalized_raw["stock_mode"] = "packages"
+            medication = normalize_medication(normalized_raw, medication_id)
+            if medication["stock_mode"] == "packages":
+                medication["stock"] = self._package_stock(medication["id"])
+            if existing:
+                self.data["medications"][self.data["medications"].index(existing)] = (
+                    medication
+                )
             else:
                 self.data["medications"].append(medication)
             await self._changed()
@@ -135,18 +157,74 @@ class MedicationManager:
             ):
                 raise ValueError("Medication is still used by an intake")
             self.data["medications"].remove(medication)
+            self.data["packages"] = [
+                package
+                for package in self.data["packages"]
+                if package["medication_id"] != medication_id
+            ]
             await self._changed()
 
-    async def async_adjust_stock(self, medication_id: str, delta: float) -> dict[str, Any]:
+    async def async_adjust_stock(
+        self, medication_id: str, delta: float
+    ) -> dict[str, Any]:
         """Adjust stock while preventing a negative result."""
         async with self._lock:
             medication = self._require("medications", medication_id)
+            if medication.get("stock_mode") == "packages":
+                raise ValueError("Package-tracked stock must be adjusted on a package")
             new_stock = round(float(medication["stock"]) + float(delta), 3)
             if not math.isfinite(new_stock) or new_stock < 0:
                 raise ValueError("Stock cannot become negative")
             medication["stock"] = new_stock
             await self._changed()
             return public_data(medication)
+
+    async def async_save_package(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Create or update a physical package and recalculate stock."""
+        async with self._lock:
+            medication_id = str(raw.get("medication_id", ""))
+            medication = self._require("medications", medication_id)
+            package_id = str(raw.get("id", "")) or None
+            existing = self._find("packages", package_id) if package_id else None
+            if existing and existing["medication_id"] != medication_id:
+                raise ValueError("A package cannot be moved to another medication")
+            if not existing and medication.get("stock_mode", "manual") == "manual":
+                self._convert_manual_stock_to_package(medication)
+            normalized_raw = dict(raw)
+            if not str(normalized_raw.get("nickname", "")).strip():
+                normalized_raw["nickname"] = (
+                    existing["nickname"]
+                    if existing
+                    else self._next_package_nickname(medication_id)
+                )
+            package = normalize_package(normalized_raw, medication_id, existing)
+            if any(
+                other["medication_id"] == medication_id
+                and other["id"] != package["id"]
+                and other["nickname"].casefold() == package["nickname"].casefold()
+                for other in self.data["packages"]
+            ):
+                raise ValueError("Package nickname must be unique per medication")
+            package["created_at"] = (
+                existing.get("created_at") if existing else dt_util.now().isoformat()
+            )
+            if existing:
+                self.data["packages"][self.data["packages"].index(existing)] = package
+            else:
+                self.data["packages"].append(package)
+            medication["stock_mode"] = "packages"
+            self._recalculate_package_stock(medication_id)
+            await self._changed()
+            return public_data(package)
+
+    async def async_delete_package(self, package_id: str) -> None:
+        """Delete a package while keeping allocation snapshots in history."""
+        async with self._lock:
+            package = self._require("packages", package_id)
+            medication_id = package["medication_id"]
+            self.data["packages"].remove(package)
+            self._recalculate_package_stock(medication_id)
+            await self._changed()
 
     async def async_save_regimen(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Create or update an intake regimen."""
@@ -192,51 +270,63 @@ class MedicationManager:
             occurrence = self._require("occurrences", occurrence_id)
             if occurrence["status"] in ("taken", "skipped"):
                 return public_data(occurrence)
-            now = dt_util.now().isoformat()
-            changes: list[tuple[dict[str, Any], dict[str, Any], float, float]] = []
-            for item in occurrence["items"]:
-                remaining = round(item["planned_dose"] - item["taken_dose"], 3)
-                requested = remaining if doses is None else float(doses.get(item["medication_id"], 0))
-                if not math.isfinite(requested) or requested < 0 or requested > remaining:
-                    raise ValueError("Taken dose exceeds the remaining planned dose")
-                if requested == 0:
-                    continue
-                medication = self._require("medications", item["medication_id"])
-                before = float(medication["stock"])
-                if requested > before:
-                    raise ValueError(f"Not enough stock for {medication['name']}")
-                changes.append((item, medication, requested, before))
-            if not changes:
-                raise ValueError("No dose was selected")
-
-            # Apply only after every requested dose has passed validation. This keeps
-            # multi-medication intakes atomic when one stock is insufficient.
-            for item, medication, requested, before in changes:
-                medication["stock"] = round(before - requested, 3)
-                item["taken_dose"] = round(item["taken_dose"] + requested, 3)
-                item["taken_at"] = now
-                if before > medication["low_stock_threshold"] >= medication["stock"]:
-                    self.hass.bus.async_fire(
-                        EVENT_LOW_STOCK,
-                        {"medication_id": medication["id"], "stock": medication["stock"]},
-                    )
-            complete = all(
-                item["taken_dose"] >= item["planned_dose"] for item in occurrence["items"]
-            )
-            occurrence["status"] = "taken" if complete else "partial"
-            occurrence["taken_at"] = now if complete else None
-            occurrence["completed_by"] = user_id if complete else None
-            occurrence["snoozed_until"] = None
+            complete = self._record_intake_locked(occurrence, doses, user_id)
             await self._changed()
-            self.hass.bus.async_fire(
-                EVENT_TAKEN,
-                {
-                    "occurrence_id": occurrence_id,
-                    "regimen_id": occurrence["regimen_id"],
-                    "complete": complete,
-                    "items": public_data(occurrence["items"]),
-                },
+            self._fire_taken_event(occurrence, complete)
+            return public_data(occurrence)
+
+    async def async_record_unplanned_intake(
+        self,
+        items: list[dict[str, Any]],
+        user_id: str | None = None,
+        taken_at: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Record an unscheduled intake with the same stock guarantees."""
+        async with self._lock:
+            seen: set[str] = set()
+            occurrence_items: list[dict[str, Any]] = []
+            for raw in items:
+                medication_id = str(raw.get("medication_id", ""))
+                self._require("medications", medication_id)
+                if medication_id in seen:
+                    raise ValueError("Medication occurs more than once")
+                seen.add(medication_id)
+                dose = float(raw.get("dose", 0))
+                if not math.isfinite(dose) or dose <= 0:
+                    raise ValueError("dose must be greater than zero")
+                occurrence_items.append(
+                    {
+                        "medication_id": medication_id,
+                        "planned_dose": round(dose, 3),
+                        "taken_dose": 0,
+                        "allocations": [],
+                    }
+                )
+            if not occurrence_items:
+                raise ValueError("At least one medication is required")
+            actual = dt_util.as_local(taken_at or dt_util.now())
+            if actual > dt_util.now() + timedelta(minutes=1):
+                raise ValueError("Intake time must not be in the future")
+            occurrence = {
+                "id": new_id(),
+                "regimen_id": None,
+                "regimen_name": None,
+                "unplanned": True,
+                "scheduled_at": actual.isoformat(),
+                "status": "pending",
+                "items": occurrence_items,
+                "taken_at": None,
+                "snoozed_until": None,
+                "last_reminded_at": None,
+                "reminders_sent": 0,
+                "completed_by": None,
+            }
+            complete = self._record_intake_locked(
+                occurrence, None, user_id, recorded_at=actual
             )
+            self.data["occurrences"].append(occurrence)
+            await self._changed()
+            self._fire_taken_event(occurrence, complete)
             return public_data(occurrence)
 
     async def async_snooze(self, occurrence_id: str, until: datetime) -> dict[str, Any]:
@@ -251,7 +341,47 @@ class MedicationManager:
             await self._changed()
             return public_data(occurrence)
 
-    async def async_skip(self, occurrence_id: str, user_id: str | None = None) -> dict[str, Any]:
+    async def async_postpone_interval(self, occurrence_id: str) -> dict[str, Any]:
+        """Move an interval occurrence to tomorrow and shift its entire cycle."""
+        async with self._lock:
+            occurrence = self._require("occurrences", occurrence_id)
+            if occurrence["status"] != "pending":
+                raise ValueError("Only untouched open intakes can shift their cycle")
+            regimen = self._find("regimens", occurrence.get("regimen_id"))
+            if not regimen or regimen["schedule"].get("type") != "interval":
+                raise ValueError("Only interval schedules can shift their cycle")
+            scheduled = _parse_optional_datetime(occurrence["scheduled_at"])
+            if scheduled is None:
+                raise ValueError("Invalid scheduled time")
+            now = dt_util.now()
+            if dt_util.as_local(scheduled).date() > now.date():
+                raise ValueError("Only due intakes can shift to tomorrow")
+            target_date = now.date() + timedelta(days=1)
+            shift_days = (target_date - dt_util.as_local(scheduled).date()).days
+            start_date = date.fromisoformat(regimen["schedule"]["start_date"])
+            regimen["schedule"]["start_date"] = (
+                start_date + timedelta(days=shift_days)
+            ).isoformat()
+            occurrence["scheduled_at"] = (
+                dt_util.as_local(scheduled) + timedelta(days=shift_days)
+            ).isoformat()
+            occurrence["snoozed_until"] = None
+            occurrence["last_reminded_at"] = None
+            occurrence["reminders_sent"] = 0
+            await self._changed()
+            self.hass.bus.async_fire(
+                EVENT_POSTPONED,
+                {
+                    "occurrence_id": occurrence_id,
+                    "regimen_id": regimen["id"],
+                    "scheduled_at": occurrence["scheduled_at"],
+                },
+            )
+            return public_data(occurrence)
+
+    async def async_skip(
+        self, occurrence_id: str, user_id: str | None = None
+    ) -> dict[str, Any]:
         """Mark an occurrence skipped without changing stock."""
         async with self._lock:
             occurrence = self._require("occurrences", occurrence_id)
@@ -264,17 +394,223 @@ class MedicationManager:
             await self._changed()
             self.hass.bus.async_fire(
                 EVENT_SKIPPED,
-                {"occurrence_id": occurrence_id, "regimen_id": occurrence["regimen_id"]},
+                {
+                    "occurrence_id": occurrence_id,
+                    "regimen_id": occurrence["regimen_id"],
+                },
             )
             return public_data(occurrence)
+
+    def _record_intake_locked(
+        self,
+        occurrence: dict[str, Any],
+        doses: dict[str, float] | None,
+        user_id: str | None,
+        recorded_at: datetime | None = None,
+    ) -> bool:
+        """Validate and apply one intake while the manager lock is held."""
+        changes: list[dict[str, Any]] = []
+        for item in occurrence["items"]:
+            remaining = round(item["planned_dose"] - item["taken_dose"], 3)
+            requested = (
+                remaining
+                if doses is None
+                else float(doses.get(item["medication_id"], 0))
+            )
+            if not math.isfinite(requested) or requested < 0 or requested > remaining:
+                raise ValueError("Taken dose exceeds the remaining planned dose")
+            if requested == 0:
+                continue
+            medication = self._require("medications", item["medication_id"])
+            before = float(medication["stock"])
+            if requested > before:
+                raise ValueError(f"Not enough stock for {medication['name']}")
+            package_parts = (
+                self._package_deductions(medication["id"], requested, strict=True)
+                if medication.get("stock_mode") == "packages"
+                else []
+            )
+            changes.append(
+                {
+                    "item": item,
+                    "medication": medication,
+                    "requested": requested,
+                    "before": before,
+                    "package_parts": package_parts,
+                }
+            )
+        if not changes:
+            raise ValueError("No dose was selected")
+
+        taken_at = dt_util.as_local(recorded_at or dt_util.now()).isoformat()
+        for change in changes:
+            item = change["item"]
+            medication = change["medication"]
+            requested = change["requested"]
+            parts = change["package_parts"]
+            if parts:
+                for package, amount in parts:
+                    package["remaining_quantity"] = round(
+                        package["remaining_quantity"] - amount, 3
+                    )
+                    item.setdefault("allocations", []).append(
+                        self._package_snapshot(package, amount, taken_at)
+                    )
+                self._recalculate_package_stock(medication["id"])
+            else:
+                medication["stock"] = round(change["before"] - requested, 3)
+            item["taken_dose"] = round(item["taken_dose"] + requested, 3)
+            item["taken_at"] = taken_at
+            if (
+                change["before"]
+                > medication["low_stock_threshold"]
+                >= medication["stock"]
+            ):
+                self.hass.bus.async_fire(
+                    EVENT_LOW_STOCK,
+                    {
+                        "medication_id": medication["id"],
+                        "stock": medication["stock"],
+                    },
+                )
+        complete = all(
+            item["taken_dose"] >= item["planned_dose"] for item in occurrence["items"]
+        )
+        occurrence["status"] = "taken" if complete else "partial"
+        occurrence["taken_at"] = taken_at if complete else None
+        occurrence["completed_by"] = user_id if complete else None
+        occurrence["snoozed_until"] = None
+        return complete
+
+    def _fire_taken_event(self, occurrence: dict[str, Any], complete: bool) -> None:
+        """Emit the shared taken event for scheduled and unplanned intake."""
+        self.hass.bus.async_fire(
+            EVENT_TAKEN,
+            {
+                "occurrence_id": occurrence["id"],
+                "regimen_id": occurrence.get("regimen_id"),
+                "unplanned": occurrence.get("unplanned", False),
+                "complete": complete,
+                "items": public_data(occurrence["items"]),
+            },
+        )
+
+    def package_plan(
+        self, medication_id: str, amount: float, *, strict: bool = True
+    ) -> list[dict[str, Any]]:
+        """Return the FEFO packages recommended for a dose without mutating stock."""
+        medication = self._find("medications", medication_id)
+        if not medication or medication.get("stock_mode") != "packages" or amount <= 0:
+            return []
+        return [
+            self._package_snapshot(package, part, None)
+            for package, part in self._package_deductions(
+                medication_id, amount, strict=strict
+            )
+        ]
+
+    def _package_deductions(
+        self, medication_id: str, amount: float, *, strict: bool
+    ) -> list[tuple[dict[str, Any], float]]:
+        packages = sorted(
+            (
+                package
+                for package in self._packages_for(medication_id)
+                if package["remaining_quantity"] > 0
+            ),
+            key=lambda package: (
+                package.get("expires_on") or "9999-12-31",
+                package.get("created_at") or "",
+                package["id"],
+            ),
+        )
+        remaining = round(float(amount), 3)
+        result: list[tuple[dict[str, Any], float]] = []
+        for package in packages:
+            if remaining <= 0:
+                break
+            part = min(remaining, float(package["remaining_quantity"]))
+            if part > 0:
+                result.append((package, round(part, 3)))
+                remaining = round(remaining - part, 3)
+        if strict and remaining > 0:
+            medication = self._require("medications", medication_id)
+            raise ValueError(f"Not enough stock for {medication['name']}")
+        return result
+
+    @staticmethod
+    def _package_snapshot(
+        package: dict[str, Any], amount: float, taken_at: str | None
+    ) -> dict[str, Any]:
+        return {
+            "package_id": package["id"],
+            "nickname": package["nickname"],
+            "lot_number": package.get("lot_number", ""),
+            "expires_on": package.get("expires_on"),
+            "amount": round(amount, 3),
+            "taken_at": taken_at,
+        }
+
+    def _packages_for(self, medication_id: str) -> list[dict[str, Any]]:
+        return [
+            package
+            for package in self.data.get("packages", [])
+            if package["medication_id"] == medication_id
+        ]
+
+    def _package_stock(self, medication_id: str) -> float:
+        return round(
+            sum(
+                float(package["remaining_quantity"])
+                for package in self._packages_for(medication_id)
+            ),
+            3,
+        )
+
+    def _recalculate_package_stock(self, medication_id: str) -> None:
+        medication = self._find("medications", medication_id)
+        if medication and medication.get("stock_mode") == "packages":
+            medication["stock"] = self._package_stock(medication_id)
+
+    def _recalculate_all_package_stock(self) -> None:
+        for medication in self.data["medications"]:
+            self._recalculate_package_stock(medication["id"])
+
+    def _convert_manual_stock_to_package(self, medication: dict[str, Any]) -> None:
+        current = float(medication.get("stock", 0))
+        medication["stock_mode"] = "packages"
+        if current <= 0:
+            medication["stock"] = 0
+            return
+        package = normalize_package(
+            {
+                "nickname": "Legacy",
+                "quantity": current,
+                "remaining_quantity": current,
+            },
+            medication["id"],
+        )
+        package["created_at"] = dt_util.now().isoformat()
+        self.data["packages"].append(package)
+
+    def _next_package_nickname(self, medication_id: str) -> str:
+        used = {
+            package["nickname"].casefold()
+            for package in self._packages_for(medication_id)
+        }
+        for nickname in PACKAGE_NICKNAMES:
+            if nickname.casefold() not in used:
+                return nickname
+        index = len(used)
+        return f"{PACKAGE_NICKNAMES[index % len(PACKAGE_NICKNAMES)]} {index + 1}"
 
     async def _async_tick(self, now: datetime) -> None:
         """Create due tickets and emit reminders."""
         async with self._lock:
             now = dt_util.as_local(now)
             previous_raw = self.data.get("last_generated_at")
-            previous = (
-                _parse_optional_datetime(previous_raw) or now - timedelta(minutes=1)
+            previous = _parse_optional_datetime(previous_raw) or now - timedelta(
+                minutes=1
             )
             previous = max(dt_util.as_local(previous), now - timedelta(days=30))
             known = {
@@ -285,9 +621,15 @@ class MedicationManager:
             for regimen in self.data["regimens"]:
                 if not regimen.get("active", True):
                     continue
-                created_at = _parse_optional_datetime(regimen.get("created_at")) or previous
-                range_start = max(previous - timedelta(minutes=1), dt_util.as_local(created_at))
-                for scheduled in occurrences_between(regimen["schedule"], range_start, now):
+                created_at = (
+                    _parse_optional_datetime(regimen.get("created_at")) or previous
+                )
+                range_start = max(
+                    previous - timedelta(minutes=1), dt_util.as_local(created_at)
+                )
+                for scheduled in occurrences_between(
+                    regimen["schedule"], range_start, now
+                ):
                     key = (regimen["id"], scheduled.isoformat())
                     if key not in known:
                         ticket = occurrence_for(regimen, scheduled)
@@ -327,14 +669,54 @@ class MedicationManager:
             if changed:
                 await self._changed()
 
-    async def _async_notify(self, regimen: dict[str, Any], occurrence: dict[str, Any]) -> None:
-        names = {item["id"]: item["name"] for item in self.data["medications"]}
-        lines = [
-            f"{item['planned_dose'] - item['taken_dose']:g} × "
-            f"{names.get(item['medication_id'], translate(self.hass, 'notification.unknown_medication'))}"
-            for item in occurrence["items"]
-            if item["taken_dose"] < item["planned_dose"]
-        ]
+    async def _async_notify(
+        self, regimen: dict[str, Any], occurrence: dict[str, Any]
+    ) -> None:
+        medications = {item["id"]: item for item in self.data["medications"]}
+        lines: list[str] = []
+        for item in occurrence["items"]:
+            remaining = round(item["planned_dose"] - item["taken_dose"], 3)
+            if remaining <= 0:
+                continue
+            medication = medications.get(item["medication_id"])
+            name = (
+                medication["name"]
+                if medication
+                else translate(self.hass, "notification.unknown_medication")
+            )
+            line = f"{remaining:g} × {name}"
+            plan = self.package_plan(item["medication_id"], remaining, strict=False)
+            if plan:
+                package_labels = []
+                for package in plan:
+                    metadata = []
+                    if package["lot_number"]:
+                        metadata.append(
+                            translate(
+                                self.hass,
+                                "notification.lot",
+                                lot=package["lot_number"],
+                            )
+                        )
+                    if package["expires_on"]:
+                        metadata.append(
+                            translate(
+                                self.hass,
+                                "notification.expires",
+                                date=package["expires_on"],
+                            )
+                        )
+                    suffix = f" [{', '.join(metadata)}]" if metadata else ""
+                    unit = medication["unit"] if medication else ""
+                    package_labels.append(
+                        f"{package['nickname']} ({package['amount']:g} {unit}){suffix}"
+                    )
+                line += " " + translate(
+                    self.hass,
+                    "notification.from_packages",
+                    packages=", ".join(package_labels),
+                )
+            lines.append(line)
         occurrence_id = occurrence["id"]
         path = f"/{DOMAIN}?occurrence={occurrence_id}"
         service_data = {
@@ -367,7 +749,9 @@ class MedicationManager:
                 _LOGGER.warning("Notification service %s is unavailable", target)
                 continue
             try:
-                await self.hass.services.async_call(domain, service, service_data, blocking=False)
+                await self.hass.services.async_call(
+                    domain, service, service_data, blocking=False
+                )
             except Exception:  # Home Assistant logs provider-specific details.
                 _LOGGER.exception("Could not send medication reminder via %s", target)
         for entity_id in regimen["scripts"]:
@@ -376,7 +760,9 @@ class MedicationManager:
                     "script", "turn_on", {"entity_id": entity_id}, blocking=False
                 )
             except Exception:
-                _LOGGER.exception("Could not run medication reminder script %s", entity_id)
+                _LOGGER.exception(
+                    "Could not run medication reminder script %s", entity_id
+                )
 
     @callback
     def _handle_notification_action(self, event: Event) -> None:
@@ -430,7 +816,9 @@ class MedicationManager:
         ]
 
     def _find(self, collection: str, item_id: str | None) -> dict[str, Any] | None:
-        return next((item for item in self.data[collection] if item["id"] == item_id), None)
+        return next(
+            (item for item in self.data[collection] if item["id"] == item_id), None
+        )
 
     def _require(self, collection: str, item_id: str) -> dict[str, Any]:
         item = self._find(collection, item_id)

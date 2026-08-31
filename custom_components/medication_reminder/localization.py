@@ -14,6 +14,9 @@ _CATALOGS: Mapping[str, Mapping[str, str]] = {
         "notification.take_all": "Mark all taken",
         "notification.snooze_30": "Remind me in 30 min",
         "notification.details": "Details",
+        "notification.from_packages": "from {packages}",
+        "notification.lot": "LOT {lot}",
+        "notification.expires": "expires {date}",
     },
     "de": {
         "notification.title": "Medikamenteneinnahme",
@@ -21,6 +24,9 @@ _CATALOGS: Mapping[str, Mapping[str, str]] = {
         "notification.take_all": "Alles genommen",
         "notification.snooze_30": "In 30 Min. erinnern",
         "notification.details": "Details",
+        "notification.from_packages": "aus {packages}",
+        "notification.lot": "LOT {lot}",
+        "notification.expires": "MHD {date}",
     },
 }
 

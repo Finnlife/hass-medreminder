@@ -73,15 +73,25 @@ Darstellung und Rückmeldung einer echten Smartphone-Notification.
   Abbrechen dürfen ihn schließen.
 - Medikamente mit allen optionalen Angaben anlegen, bearbeiten und löschen.
 - Bestand positiv und negativ ändern; einen negativen Endbestand ablehnen.
+- Mehrere Packungen mit verschiedenen MHDs und LOT-Nummern anlegen. Summe,
+  eindeutige Spitznamen und Empfehlung der Packung mit nächstem MHD prüfen.
+- Eine Dosis erfassen, die größer als der Rest der ersten Packung ist. Die Aufteilung
+  auf die zwei ältesten Packungen und unveränderliche Details im Verlauf prüfen.
+- Eine ungeplante Mehrfach-Einnahme erfassen und atomare Bestandsabbuchung prüfen.
 - Wochenplan mit Werktag/Wochenende und Plan alle x Tage anlegen.
+- Eine fällige Alle-x-Tage-Einnahme auf morgen verschieben. Ticket und alle folgenden
+  Termine müssen wandern; ein Wochenplan muss diese Aktion ablehnen.
 - Fällige Einnahme mit mehreren Medikamenten und Wiederholungen auslösen.
 - Alles, eine Teilauswahl und später die Restmenge erfassen.
 - 30/60/120 Minuten und freie Uhrzeit schlummern; Wiederbeginn prüfen.
 - Einnahme auslassen und unveränderten Bestand prüfen.
 - Alte Notification-Aktion erneut auslösen; keine doppelte Abbuchung zulassen.
+- QR-Codes für Medikament, Packung und Einnahme erzeugen und scannen. Navigation,
+  Hervorhebung und Bestätigung vor jeder Bestandsabbuchung prüfen.
 - Home Assistant mit offenen, schlummernden und erledigten Tickets neu starten;
-  Persistenz, Nacherzeugung und Verlauf prüfen.
-- Entitäten, Aktionsschemata, Events sowie Desktop- und Mobilansicht prüfen.
+  Persistenz, Nacherzeugung, Packungs-Snapshots und Verlauf prüfen.
+- Globale, Medikamenten- und Packungsentitäten, Aktionsschemata, Events sowie
+  Desktop- und Mobilansicht prüfen.
 
 Nur Zustellung und Darstellung einer Companion-App-Benachrichtigung benötigen ein
 echtes Gerät und menschliche Bestätigung. Payload, Events und Browser-Verhalten

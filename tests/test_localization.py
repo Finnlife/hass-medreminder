@@ -75,11 +75,20 @@ class LocalizationTests(unittest.TestCase):
 
     def test_service_descriptions_are_translated_not_hardcoded(self) -> None:
         service_source = (INTEGRATION / "services.yaml").read_text(encoding="utf-8")
-        self.assertNotRegex(service_source, re.compile(r"^\s+(name|description):", re.MULTILINE))
+        self.assertNotRegex(
+            service_source, re.compile(r"^\s+(name|description):", re.MULTILINE)
+        )
         translations = json.loads(
             (INTEGRATION / "translations/en.json").read_text(encoding="utf-8")
         )
-        for service in ("record_intake", "snooze", "adjust_stock"):
+        for service in (
+            "record_intake",
+            "snooze",
+            "adjust_stock",
+            "add_package",
+            "record_unplanned_intake",
+            "postpone_interval",
+        ):
             self.assertIn(f"{service}:", service_source)
             self.assertIn(service, translations["services"])
 
@@ -93,7 +102,9 @@ class LocalizationTests(unittest.TestCase):
         }
         for platform, keys in expected.items():
             source = (INTEGRATION / f"{platform}.py").read_text(encoding="utf-8")
-            declared = set(re.findall(r'_attr_translation_key = "([a-z0-9_]+)"', source))
+            declared = set(
+                re.findall(r'_attr_translation_key = "([a-z0-9_]+)"', source)
+            )
             self.assertEqual(keys, declared)
 
     def test_custom_integration_has_explicit_english_translation(self) -> None:

@@ -12,12 +12,20 @@ setup, **Medications** appears as a dedicated sidebar panel.
   form, stock unit, current stock, warning threshold, and notes
 - Weekly schedules with different times per weekday and multiple times per day
 - Interval schedules for every x days from a chosen start date
+- Move a due interval intake to tomorrow and shift the complete future cycle
 - Multiple medications and individual doses in one intake
+- Unplanned intakes with the same stock and audit guarantees as scheduled intakes
 - Repeating reminders through selected `notify.*` services and scripts
 - Mobile actions to mark everything taken, snooze for 30 minutes, or open details
 - Partial intake, 30/60/120-minute and custom-time snooze, and skip controls in the app
 - Persistent open tickets and planned-versus-actual history
 - Stock deduction only after an intake is actually recorded
+- Physical packages with expiry date, LOT/batch, printed-code metadata, and a fun
+  unique nickname generated on request
+- Automatic stock calculated from packages, with FEFO recommendations and dose
+  splitting across packages when one package is not enough
+- Locally generated QR codes for medications, packages, and open intake tickets;
+  scanning opens the corresponding app view and intake codes always require confirmation
 - Sensors, binary sensors, events, and actions for dashboards and automations
 - English by default, with German UI, entity, setup, action, and notification translations
 
@@ -42,14 +50,19 @@ providers may display the message without its buttons.
 ## Home Assistant interfaces
 
 Global entities represent the next, pending, last, and overdue intakes. Each
-medication also creates a stock sensor and a low-stock binary sensor. Home Assistant
-assigns final entity IDs, which can be changed in the device view.
+medication also creates a stock sensor and a low-stock binary sensor. Every physical
+package gets its own stock sensor with LOT, expiry date, initial quantity, and printed
+code attributes. Home Assistant assigns final entity IDs, which can be changed in the
+device view.
 
 Actions:
 
 - `medication_reminder.record_intake`
 - `medication_reminder.snooze`
 - `medication_reminder.adjust_stock`
+- `medication_reminder.add_package`
+- `medication_reminder.record_unplanned_intake`
+- `medication_reminder.postpone_interval`
 
 Events:
 
@@ -57,6 +70,7 @@ Events:
 - `medication_reminder_taken`
 - `medication_reminder_skipped`
 - `medication_reminder_low_stock`
+- `medication_reminder_postponed`
 
 ## Storage and behavior
 
@@ -66,8 +80,12 @@ recording is idempotent: using an old completed notification action again does n
 deduct stock twice. The latest 2,000 completed occurrences are retained, while
 open occurrences are never removed automatically.
 
+The storage schema is versioned and the current migration adds package tracking and
+allocation snapshots without rewriting existing intake history. This project is still
+pre-1.0: back up `.storage/medication_reminder.data` before upgrading because the
+storage compatibility contract is not considered final until version 1.0.
+
 ## Development and testing
 
 See [docs/TESTING.md](docs/TESTING.md) for automated checks, the isolated Docker
 test instance, and the exact handoff needed for a full Codex browser test.
-

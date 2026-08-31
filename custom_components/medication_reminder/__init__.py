@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
 
 import voluptuous as vol
 
@@ -91,6 +90,17 @@ def _register_services(hass: HomeAssistant) -> None:
             call.data["medication_id"], call.data["delta"]
         )
 
+    async def add_package(call: ServiceCall) -> None:
+        await _active_manager(hass).async_save_package(dict(call.data))
+
+    async def record_unplanned(call: ServiceCall) -> None:
+        await _active_manager(hass).async_record_unplanned_intake(
+            call.data["items"], call.context.user_id
+        )
+
+    async def postpone_interval(call: ServiceCall) -> None:
+        await _active_manager(hass).async_postpone_interval(call.data["occurrence_id"])
+
     hass.services.async_register(
         DOMAIN,
         "record_intake",
@@ -101,6 +111,46 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Optional("doses"): {cv.string: vol.Coerce(float)},
             }
         ),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "add_package",
+        add_package,
+        schema=vol.Schema(
+            {
+                vol.Required("medication_id"): cv.string,
+                vol.Required("quantity"): vol.All(
+                    vol.Coerce(float), vol.Range(min=0.001)
+                ),
+                vol.Optional("nickname", default=""): cv.string,
+                vol.Optional("lot_number", default=""): cv.string,
+                vol.Optional("expires_on", default=""): cv.string,
+                vol.Optional("external_code", default=""): cv.string,
+            }
+        ),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "record_unplanned_intake",
+        record_unplanned,
+        schema=vol.Schema(
+            {
+                vol.Required("items"): [
+                    {
+                        vol.Required("medication_id"): cv.string,
+                        vol.Required("dose"): vol.All(
+                            vol.Coerce(float), vol.Range(min=0.001)
+                        ),
+                    }
+                ]
+            }
+        ),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "postpone_interval",
+        postpone_interval,
+        schema=vol.Schema({vol.Required("occurrence_id"): cv.string}),
     )
     hass.services.async_register(
         DOMAIN,

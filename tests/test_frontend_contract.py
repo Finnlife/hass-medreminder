@@ -6,7 +6,9 @@ import unittest
 
 
 ROOT = Path(__file__).parents[1]
-PANEL = ROOT / "custom_components/medication_reminder/frontend/medication-reminder-panel.js"
+PANEL = (
+    ROOT / "custom_components/medication_reminder/frontend/medication-reminder-panel.js"
+)
 WEBSOCKET = ROOT / "custom_components/medication_reminder/websocket.py"
 
 
@@ -16,14 +18,23 @@ class FrontendContractTests(unittest.TestCase):
     def test_domain_commands_never_reuse_websocket_id(self) -> None:
         backend = WEBSOCKET.read_text(encoding="utf-8")
         self.assertNotIn('vol.Required("id")', backend)
-        for field in ("medication_id", "regimen_id", "occurrence_id"):
+        for field in ("medication_id", "package_id", "regimen_id", "occurrence_id"):
             self.assertIn(f'vol.Required("{field}")', backend)
+
+    def test_snooze_command_still_calls_manager(self) -> None:
+        backend = WEBSOCKET.read_text(encoding="utf-8")
+        start = backend.index("async def ws_snooze")
+        end = backend.index("async def ws_postpone_interval")
+        snooze_handler = backend[start:end]
+        self.assertIn("async_snooze", snooze_handler)
+        self.assertIn('msg["occurrence_id"]', snooze_handler)
 
     def test_frontend_sends_named_domain_ids(self) -> None:
         panel = PANEL.read_text(encoding="utf-8")
-        self.assertNotRegex(panel, re.compile(r'this\.call\([^\n]+\{\s*id[,}]'))
+        self.assertNotRegex(panel, re.compile(r"this\.call\([^\n]+\{\s*id[,}]"))
         self.assertIn("{ occurrence_id: id, minutes:", panel)
         self.assertIn("{ medication_id: id, delta:", panel)
+        self.assertIn("{ package_id: id }", panel)
 
     def test_modal_backdrop_has_no_close_action(self) -> None:
         panel = PANEL.read_text(encoding="utf-8")
@@ -31,6 +42,21 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn('event.target.closest("button")', panel)
         self.assertNotIn('event.target.closest("button,', panel)
         self.assertGreaterEqual(panel.count('data-action="close-modal"'), 4)
+
+    def test_new_product_flows_are_wired_end_to_end(self) -> None:
+        panel = PANEL.read_text(encoding="utf-8")
+        backend = WEBSOCKET.read_text(encoding="utf-8")
+        for command in (
+            "save_package",
+            "delete_package",
+            "record_unplanned_intake",
+            "postpone_interval",
+            "generate_qr",
+        ):
+            self.assertIn(f'this.call("{command}"', panel)
+            self.assertIn(f'{command}"', backend)
+        self.assertIn('url.searchParams.set("scan"', panel)
+        self.assertIn('item.unplanned ? this.t("unplanned.history_name")', panel)
 
 
 if __name__ == "__main__":

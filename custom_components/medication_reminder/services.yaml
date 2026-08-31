@@ -32,3 +32,39 @@ adjust_stock:
       selector:
         number:
           mode: box
+add_package:
+  fields:
+    medication_id:
+      required: true
+      selector:
+        text:
+    quantity:
+      required: true
+      selector:
+        number:
+          min: 0.001
+          mode: box
+    nickname:
+      selector:
+        text:
+    lot_number:
+      selector:
+        text:
+    expires_on:
+      selector:
+        date:
+    external_code:
+      selector:
+        text:
+record_unplanned_intake:
+  fields:
+    items:
+      required: true
+      selector:
+        object:
+postpone_interval:
+  fields:
+    occurrence_id:
+      required: true
+      selector:
+        text:

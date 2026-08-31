@@ -23,13 +23,34 @@ async def async_setup_entry(
     """Set up global and per-medication sensors."""
     manager: MedicationManager = hass.data[DOMAIN]["managers"][entry.entry_id]
     known: set[str] = set()
+    known_packages: set[str] = set()
 
     @callback
     def add_medications() -> None:
-        new = [item["id"] for item in manager.data["medications"] if item["id"] not in known]
+        new = [
+            item["id"]
+            for item in manager.data["medications"]
+            if item["id"] not in known
+        ]
         if new:
             known.update(new)
-            async_add_entities(MedicationStockSensor(manager, item_id) for item_id in new)
+            async_add_entities(
+                MedicationStockSensor(manager, item_id) for item_id in new
+            )
+
+    @callback
+    def add_packages() -> None:
+        new = [
+            item
+            for item in manager.data.get("packages", [])
+            if item["id"] not in known_packages
+        ]
+        if new:
+            known_packages.update(item["id"] for item in new)
+            async_add_entities(
+                MedicationPackageStockSensor(manager, item["medication_id"], item["id"])
+                for item in new
+            )
 
     async_add_entities(
         [
@@ -39,7 +60,14 @@ async def async_setup_entry(
         ]
     )
     add_medications()
-    entry.async_on_unload(manager.async_add_listener(add_medications))
+    add_packages()
+
+    @callback
+    def add_dynamic_entities() -> None:
+        add_medications()
+        add_packages()
+
+    entry.async_on_unload(manager.async_add_listener(add_dynamic_entities))
 
 
 class MedicationStockSensor(MedicationEntity, SensorEntity):
@@ -69,6 +97,67 @@ class MedicationStockSensor(MedicationEntity, SensorEntity):
             "manufacturer": self.medication.get("manufacturer"),
             "barcode": self.medication.get("barcode"),
             "strength": self.medication.get("strength"),
+            "stock_mode": self.medication.get("stock_mode", "manual"),
+            "package_count": len(
+                [
+                    package
+                    for package in self.manager.data.get("packages", [])
+                    if package["medication_id"] == self.medication_id
+                    and package["remaining_quantity"] > 0
+                ]
+            ),
+        }
+
+
+class MedicationPackageStockSensor(MedicationEntity, SensorEntity):
+    """Remaining stock and metadata for one physical package."""
+
+    _attr_icon = "mdi:package-variant-closed"
+
+    def __init__(
+        self, manager: MedicationManager, medication_id: str, package_id: str
+    ) -> None:
+        super().__init__(manager, medication_id, f"package_{package_id}_stock")
+        self.package_id = package_id
+
+    @property
+    def package(self) -> dict[str, Any] | None:
+        return next(
+            (
+                item
+                for item in self.manager.data.get("packages", [])
+                if item["id"] == self.package_id
+            ),
+            None,
+        )
+
+    @property
+    def available(self) -> bool:
+        return self.medication is not None and self.package is not None
+
+    @property
+    def name(self) -> str | None:
+        return self.package["nickname"] if self.package else None
+
+    @property
+    def native_value(self) -> float | None:
+        return self.package["remaining_quantity"] if self.package else None
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        return self.medication["unit"] if self.medication else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        if not self.package:
+            return {}
+        return {
+            "package_id": self.package_id,
+            "medication_id": self.medication_id,
+            "lot_number": self.package.get("lot_number"),
+            "expires_on": self.package.get("expires_on"),
+            "initial_quantity": self.package["initial_quantity"],
+            "external_code": self.package.get("external_code"),
         }
 
 
