@@ -1,5 +1,7 @@
 # Medication Reminder for Home Assistant
 
+<img src="custom_components/medication_reminder/frontend/logo.png" alt="Medication Reminder logo" width="160">
+
 [Deutsch](README.de.md)
 
 A local Home Assistant custom integration for medication schedules, stock tracking,
