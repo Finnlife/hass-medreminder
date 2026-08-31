@@ -66,6 +66,7 @@ Actions:
 - `medication_reminder.add_package`
 - `medication_reminder.record_unplanned_intake`
 - `medication_reminder.postpone_interval`
+- `medication_reminder.delete_all_data` (requires `confirmation: DELETE`)
 
 Events:
 
@@ -82,6 +83,10 @@ After a restart, missed scheduled times are generated for up to 30 days. Intake
 recording is idempotent: using an old completed notification action again does not
 deduct stock twice. The latest 2,000 completed occurrences are retained, while
 open occurrences are never removed automatically.
+
+The trash button in the panel header can permanently delete all Medication Reminder
+records after a second confirmation with `DELETE`. This keeps the integration itself
+installed. The same server-side confirmation is required by the Home Assistant action.
 
 The storage schema is versioned and the current migration adds package tracking and
 allocation snapshots without rewriting existing intake history. This project is still

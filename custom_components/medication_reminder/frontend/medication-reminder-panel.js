@@ -31,7 +31,7 @@ class MedicationReminderPanel extends HTMLElement {
       this.language = language;
       this.locale = language === "de" ? "de-DE" : "en-US";
       this.t = createTranslator(language);
-      if (this.isConnected) this.render();
+      if (this.isConnected && !this.hasActiveDraft()) this.render();
     }
     if (!this.state && !this.loading) this.load();
   }
@@ -41,7 +41,9 @@ class MedicationReminderPanel extends HTMLElement {
 
   connectedCallback() {
     this.render();
-    this.poller = window.setInterval(() => this.load(false), 30000);
+    this.poller = window.setInterval(() => {
+      if (!this.hasActiveDraft()) this.load(false);
+    }, 30000);
   }
 
   disconnectedCallback() { window.clearInterval(this.poller); }
@@ -52,7 +54,7 @@ class MedicationReminderPanel extends HTMLElement {
   }
 
   async load(showSpinner = true) {
-    if (this.loading || !this.hass) return;
+    if (this.loading || !this.hass || (!showSpinner && this.hasActiveDraft())) return;
     this.loading = true;
     if (showSpinner) this.render();
     try {
@@ -65,7 +67,7 @@ class MedicationReminderPanel extends HTMLElement {
       this.showToast(this.errorText(error), true);
     } finally {
       this.loading = false;
-      this.render();
+      if (showSpinner || !this.hasActiveDraft()) this.render();
     }
   }
 
@@ -98,6 +100,7 @@ class MedicationReminderPanel extends HTMLElement {
       "Only untouched open intakes can shift their cycle": "error.interval_only",
       "Only interval schedules can shift their cycle": "error.interval_only",
       "Only due intakes can shift to tomorrow": "error.interval_only",
+      "Invalid delete confirmation": "error.delete_confirmation",
     };
     if (translations[message]) return this.t(translations[message]);
     if (message.startsWith("Not enough stock for ")) {
@@ -111,9 +114,25 @@ class MedicationReminderPanel extends HTMLElement {
 
   showToast(message, error = false) {
     this.toast = { message, error };
-    this.render();
+    this.renderToastOnly();
     window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => { this.toast = null; this.render(); }, 4000);
+    this.toastTimer = window.setTimeout(() => {
+      this.toast = null;
+      this.renderToastOnly();
+    }, 4000);
+  }
+
+  hasActiveDraft() {
+    const active = this.shadowRoot?.activeElement;
+    return Boolean(this.modal || active?.matches("input, textarea, select, [contenteditable='true']"));
+  }
+
+  renderToastOnly() {
+    this.shadowRoot.querySelector(".toast")?.remove();
+    if (!this.toast) return;
+    const template = document.createElement("template");
+    template.innerHTML = this.renderToast();
+    this.shadowRoot.append(template.content);
   }
 
   medication(id) { return this.state?.medications.find((item) => item.id === id); }
@@ -183,7 +202,7 @@ class MedicationReminderPanel extends HTMLElement {
       <header>
         <div class="brand"><div class="brand-icon"><img src="/medication_reminder_frontend/logo.png" alt=""></div>
           <div><span>MEDICATION REMINDER</span><h1>${this.t("app.title")}</h1></div></div>
-        <div class="header-actions"><button class="ghost" data-action="new-unplanned"><ha-icon icon="mdi:pill-plus"></ha-icon><span>${this.t("app.record_unplanned")}</span></button><button class="ghost icon-only" data-action="refresh" title="${this.t("app.refresh")}"><ha-icon icon="mdi:refresh"></ha-icon></button>
+        <div class="header-actions"><button class="ghost" data-action="new-unplanned"><ha-icon icon="mdi:pill-plus"></ha-icon><span>${this.t("app.record_unplanned")}</span></button><button class="ghost icon-only" data-action="refresh" title="${this.t("app.refresh")}"><ha-icon icon="mdi:refresh"></ha-icon></button><button class="ghost icon-only danger-text" data-action="delete-all-data" title="${this.t("app.delete_all_data")}"><ha-icon icon="mdi:delete-sweep-outline"></ha-icon></button>
           <button class="primary" data-action="new-regimen"><ha-icon icon="mdi:plus"></ha-icon><span>${this.t("regimens.create")}</span></button></div>
       </header>
       <nav>${tabs.map(([id, icon, label]) => `<button data-tab="${id}" class="${this.activeTab === id ? "active" : ""}"><ha-icon icon="${icon}"></ha-icon>${label}</button>`).join("")}</nav>
@@ -433,6 +452,13 @@ class MedicationReminderPanel extends HTMLElement {
     const action = button.dataset.action;
     const id = button.dataset.id;
     if (action === "refresh") return this.load();
+    if (action === "delete-all-data") {
+      if (!confirm(this.t("confirm.delete_all_data"))) return;
+      const confirmation = prompt(this.t("prompt.delete_all_data"));
+      if (confirmation === null) return;
+      if (confirmation !== "DELETE") return this.showToast(this.t("error.delete_confirmation"), true);
+      return this.mutate(() => this.call("delete_all_data", { confirmation }), this.t("action.all_data_deleted"));
+    }
     if (action === "close-modal") { this.modal = null; this.render(); return; }
     if (action === "new-medication") { this.modal = { type: "medication", item: {} }; this.render(); return; }
     if (action === "edit-medication") { this.modal = { type: "medication", item: this.medication(id) }; this.render(); return; }

@@ -237,6 +237,14 @@ class MedicationManager:
             self._recalculate_package_stock(medication_id)
             await self._changed()
 
+    async def async_delete_all_data(self, confirmation: str) -> None:
+        """Delete all Medication Reminder domain data but keep the integration."""
+        if confirmation != "DELETE":
+            raise ValueError("Invalid delete confirmation")
+        async with self._lock:
+            self.data = empty_data()
+            await self._changed()
+
     async def async_save_regimen(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Create or update an intake regimen."""
         async with self._lock:

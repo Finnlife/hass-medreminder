@@ -71,6 +71,8 @@ phone renders and returns notification actions correctly.
   verify panel, setup flow, entities, actions, and notifications.
 - Select and copy text in every modal; confirm it stays open. Close only with the X
   or Cancel button.
+- Keep each form open for more than 30 seconds while typing and trigger a validation
+  error; confirm no entered field or text selection is reset.
 - Create, edit, and delete medications with all optional metadata.
 - Adjust stock positively and negatively; reject negative resulting stock.
 - Add multiple packages with different expiry dates and LOT numbers. Verify that
@@ -93,6 +95,8 @@ phone renders and returns notification actions correctly.
   due generation, package allocation snapshots, and history.
 - Check global, medication, and package entities, action schemas, events, desktop
   layout, and a narrow mobile viewport.
+- Enter a wrong delete confirmation and verify nothing changes. Then use `DELETE`,
+  verify every domain record is removed, and confirm the integration remains installed.
 
 The physical delivery and rendering of a Companion App notification is the only
 step that requires a real device and human confirmation. Codex can verify the

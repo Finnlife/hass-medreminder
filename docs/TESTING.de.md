@@ -71,6 +71,8 @@ Darstellung und Rückmeldung einer echten Smartphone-Notification.
   Panel, Setup, Entitäten, Aktionen und Benachrichtigungen prüfen.
 - In jedem Dialog Text markieren und kopieren; er muss offen bleiben. Nur X und
   Abbrechen dürfen ihn schließen.
+- Jedes Formular länger als 30 Sekunden während der Eingabe offen lassen und einen
+  Validierungsfehler auslösen; kein Feld und keine Textauswahl darf zurückgesetzt werden.
 - Medikamente mit allen optionalen Angaben anlegen, bearbeiten und löschen.
 - Bestand positiv und negativ ändern; einen negativen Endbestand ablehnen.
 - Mehrere Packungen mit verschiedenen MHDs und LOT-Nummern anlegen. Summe,
@@ -93,6 +95,8 @@ Darstellung und Rückmeldung einer echten Smartphone-Notification.
   Persistenz, Nacherzeugung, Packungs-Snapshots und Verlauf prüfen.
 - Globale, Medikamenten- und Packungsentitäten, Aktionsschemata, Events sowie
   Desktop- und Mobilansicht prüfen.
+- Eine falsche Löschbestätigung eingeben und unveränderte Daten prüfen. Danach mit
+  `DELETE` alle Domänendaten löschen; die Integration muss installiert bleiben.
 
 Nur Zustellung und Darstellung einer Companion-App-Benachrichtigung benötigen ein
 echtes Gerät und menschliche Bestätigung. Payload, Events und Browser-Verhalten

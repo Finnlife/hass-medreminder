@@ -34,6 +34,7 @@ def async_register_websocket_api(hass: HomeAssistant) -> None:
         ws_postpone_interval,
         ws_generate_qr,
         ws_skip,
+        ws_delete_all_data,
     ):
         websocket_api.async_register_command(hass, command)
 
@@ -271,4 +272,20 @@ async def ws_skip(hass, connection, msg) -> None:
         connection,
         msg,
         lambda: _manager(hass).async_skip(msg["occurrence_id"], connection.user.id),
+    )
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/delete_all_data",
+        vol.Required("confirmation"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_delete_all_data(hass, connection, msg) -> None:
+    """Delete every persisted Medication Reminder record."""
+    await _respond(
+        connection,
+        msg,
+        lambda: _manager(hass).async_delete_all_data(msg["confirmation"]),
     )

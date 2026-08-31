@@ -192,6 +192,16 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(15.0, manager.data["medications"][0]["stock"])
         self.assertEqual("packages", manager.data["medications"][0]["stock_mode"])
 
+    async def test_delete_all_data_requires_confirmation_and_clears_store(self) -> None:
+        manager = self.manager_with_occurrence(second_stock=10)
+        with self.assertRaises(ValueError):
+            await manager.async_delete_all_data("delete")
+        self.assertEqual(2, len(manager.data["medications"]))
+
+        await manager.async_delete_all_data("DELETE")
+        self.assertEqual(models_module.empty_data(), manager.data)
+        self.assertEqual(models_module.empty_data(), manager._store.saved[-1])
+
     async def test_multi_medication_booking_is_atomic(self) -> None:
         manager = self.manager_with_occurrence(second_stock=0.5)
         with self.assertRaises(ValueError):

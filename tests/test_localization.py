@@ -88,6 +88,7 @@ class LocalizationTests(unittest.TestCase):
             "add_package",
             "record_unplanned_intake",
             "postpone_interval",
+            "delete_all_data",
         ):
             self.assertIn(f"{service}:", service_source)
             self.assertIn(service, translations["services"])

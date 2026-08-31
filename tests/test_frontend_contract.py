@@ -67,6 +67,28 @@ class FrontendContractTests(unittest.TestCase):
             panel,
         )
 
+    def test_background_refresh_and_toasts_preserve_form_drafts(self) -> None:
+        panel = PANEL.read_text(encoding="utf-8")
+        self.assertIn("(!showSpinner && this.hasActiveDraft())", panel)
+        self.assertIn(
+            "if (showSpinner || !this.hasActiveDraft()) this.render();", panel
+        )
+        self.assertIn("this.renderToastOnly();", panel)
+        show_toast = panel[
+            panel.index("showToast(message") : panel.index("medication(id)")
+        ]
+        self.assertNotIn("this.render();", show_toast)
+
+    def test_delete_all_requires_explicit_confirmation(self) -> None:
+        panel = PANEL.read_text(encoding="utf-8")
+        backend = WEBSOCKET.read_text(encoding="utf-8")
+        self.assertIn('confirmation !== "DELETE"', panel)
+        self.assertIn(
+            'this.call("delete_all_data", { confirmation })',
+            panel,
+        )
+        self.assertIn('vol.Required("confirmation")', backend)
+
 
 if __name__ == "__main__":
     unittest.main()

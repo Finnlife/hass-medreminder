@@ -63,7 +63,8 @@ Entity-IDs vergibt Home Assistant.
 Aktionen: `medication_reminder.record_intake`, `medication_reminder.snooze`,
 `medication_reminder.adjust_stock`, `medication_reminder.add_package`,
 `medication_reminder.record_unplanned_intake` und
-`medication_reminder.postpone_interval`.
+`medication_reminder.postpone_interval` sowie
+`medication_reminder.delete_all_data` (benötigt `confirmation: DELETE`).
 
 Events: `medication_reminder_due`, `medication_reminder_taken`,
 `medication_reminder_skipped`, `medication_reminder_low_stock` und
@@ -72,6 +73,10 @@ Events: `medication_reminder_due`, `medication_reminder_taken`,
 Alle Daten bleiben lokal unter `.storage/medication_reminder.data`. Alte mobile
 Aktionen sind idempotent und buchen Bestand nicht doppelt ab. Bis zu 2.000
 abgeschlossene Vorgänge werden gespeichert; offene Vorgänge bleiben erhalten.
+Über den Papierkorb im Panel-Header lassen sich nach einer zweiten Bestätigung mit
+`DELETE` sämtliche Medication-Reminder-Daten dauerhaft löschen. Die Integration
+selbst bleibt installiert. Dieselbe serverseitige Bestätigung gilt für die
+Home-Assistant-Aktion.
 Das Speicherschema ist versioniert; die aktuelle Migration ergänzt Packungen und
 Abbuchungs-Snapshots, ohne vorhandene Einnahmehistorie umzuschreiben. Das Projekt
 ist weiterhin vor Version 1.0. Vor 0.x-Updates sollte deshalb eine Sicherung von

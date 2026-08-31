@@ -68,3 +68,9 @@ postpone_interval:
       required: true
       selector:
         text:
+delete_all_data:
+  fields:
+    confirmation:
+      required: true
+      selector:
+        text:

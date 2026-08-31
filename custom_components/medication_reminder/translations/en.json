@@ -96,6 +96,13 @@
       "fields": {
         "occurrence_id": { "name": "Occurrence ID", "description": "ID of the due untouched interval intake." }
       }
+    },
+    "delete_all_data": {
+      "name": "Delete all Medication Reminder data",
+      "description": "Permanently deletes all medications, packages, schedules, tickets, and history while keeping the integration installed.",
+      "fields": {
+        "confirmation": { "name": "Confirmation", "description": "Enter DELETE exactly to authorize permanent deletion." }
+      }
     }
   }
 }

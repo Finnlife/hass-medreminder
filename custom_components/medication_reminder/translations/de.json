@@ -96,6 +96,13 @@
       "fields": {
         "occurrence_id": { "name": "Vorgangs-ID", "description": "ID der fälligen, noch unberührten Intervall-Einnahme." }
       }
+    },
+    "delete_all_data": {
+      "name": "Alle Medication-Reminder-Daten löschen",
+      "description": "Löscht alle Medikamente, Packungen, Pläne, Tickets und den Verlauf dauerhaft; die Integration bleibt installiert.",
+      "fields": {
+        "confirmation": { "name": "Bestätigung", "description": "DELETE exakt eingeben, um das dauerhafte Löschen zu autorisieren." }
+      }
     }
   }
 }

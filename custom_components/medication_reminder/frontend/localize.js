@@ -191,6 +191,7 @@ const EN = Object.freeze({
   "error.invalid_time_generic": "One of the entered times is invalid.",
   "error.invalid_value": "One of the entered values is invalid.",
   "app.record_unplanned": "Unplanned intake",
+  "app.delete_all_data": "Delete all Medication Reminder data",
   "stock.manual": "Manual stock",
   "stock.automatic": "Automatic from packages",
   "stock.packages": "Packages",
@@ -243,14 +244,18 @@ const EN = Object.freeze({
   "action.package_deleted": "Package deleted and stock recalculated.",
   "action.unplanned_saved": "Unplanned intake recorded and stock deducted.",
   "action.interval_postponed": "Intake and following interval dates moved to tomorrow.",
+  "action.all_data_deleted": "All Medication Reminder data was deleted.",
   "confirm.delete_package": "Delete this package? Existing intake history keeps its package snapshot.",
   "confirm.postpone_interval": "Move this intake to tomorrow and shift the complete interval cycle?",
+  "confirm.delete_all_data": "Permanently delete all medications, packages, schedules, tickets, and history? The integration itself stays installed.",
+  "prompt.delete_all_data": "This cannot be undone. Enter DELETE to confirm.",
   "error.package_stock_adjust": "Package-tracked stock must be changed on a package.",
   "error.package_quantity": "Package quantity must be greater than zero.",
   "error.package_nickname": "Package nicknames must be unique per medication.",
   "error.unplanned_future": "The intake time must not be in the future.",
   "error.interval_only": "Only due, untouched interval intakes can shift to tomorrow.",
-  "error.qr_failed": "The QR code could not be generated."
+  "error.qr_failed": "The QR code could not be generated.",
+  "error.delete_confirmation": "The confirmation did not match. No data was deleted."
 });
 
 const DE = Object.freeze({
@@ -446,6 +451,7 @@ const DE = Object.freeze({
   "error.invalid_time_generic": "Eine der eingegebenen Uhrzeiten ist ungültig.",
   "error.invalid_value": "Einer der eingegebenen Werte ist ungültig.",
   "app.record_unplanned": "Ungeplante Einnahme",
+  "app.delete_all_data": "Alle Medication-Reminder-Daten löschen",
   "stock.manual": "Manueller Bestand",
   "stock.automatic": "Automatisch aus Packungen",
   "stock.packages": "Packungen",
@@ -498,14 +504,18 @@ const DE = Object.freeze({
   "action.package_deleted": "Packung gelöscht und Bestand neu berechnet.",
   "action.unplanned_saved": "Ungeplante Einnahme erfasst und Bestand abgebucht.",
   "action.interval_postponed": "Einnahme und folgende Intervalltermine auf morgen verschoben.",
+  "action.all_data_deleted": "Alle Medication-Reminder-Daten wurden gelöscht.",
   "confirm.delete_package": "Diese Packung löschen? Bestehende Einnahmen behalten ihren Packungs-Snapshot.",
   "confirm.postpone_interval": "Diese Einnahme auf morgen und den gesamten Intervallzyklus entsprechend verschieben?",
+  "confirm.delete_all_data": "Alle Medikamente, Packungen, Pläne, Tickets und den Verlauf dauerhaft löschen? Die Integration selbst bleibt installiert.",
+  "prompt.delete_all_data": "Dies kann nicht rückgängig gemacht werden. Zur Bestätigung DELETE eingeben.",
   "error.package_stock_adjust": "Automatischer Bestand muss an einer Packung geändert werden.",
   "error.package_quantity": "Die Packungsmenge muss größer als null sein.",
   "error.package_nickname": "Packungs-Spitznamen müssen pro Medikament eindeutig sein.",
   "error.unplanned_future": "Die Einnahmezeit darf nicht in der Zukunft liegen.",
   "error.interval_only": "Nur fällige, unberührte Intervall-Einnahmen können auf morgen verschoben werden.",
-  "error.qr_failed": "Der QR-Code konnte nicht erzeugt werden."
+  "error.qr_failed": "Der QR-Code konnte nicht erzeugt werden.",
+  "error.delete_confirmation": "Die Bestätigung stimmt nicht. Es wurden keine Daten gelöscht."
 });
 
 export const CATALOGS = Object.freeze({ en: EN, de: DE });

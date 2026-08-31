@@ -101,6 +101,9 @@ def _register_services(hass: HomeAssistant) -> None:
     async def postpone_interval(call: ServiceCall) -> None:
         await _active_manager(hass).async_postpone_interval(call.data["occurrence_id"])
 
+    async def delete_all_data(call: ServiceCall) -> None:
+        await _active_manager(hass).async_delete_all_data(call.data["confirmation"])
+
     hass.services.async_register(
         DOMAIN,
         "record_intake",
@@ -175,4 +178,10 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Required("delta"): vol.Coerce(float),
             }
         ),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "delete_all_data",
+        delete_all_data,
+        schema=vol.Schema({vol.Required("confirmation"): cv.string}),
     )
