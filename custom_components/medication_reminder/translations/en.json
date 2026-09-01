@@ -57,23 +57,9 @@
         }
       }
     },
-    "adjust_stock": {
-      "name": "Adjust stock",
-      "description": "Adds a positive or negative amount to a medication's stock.",
-      "fields": {
-        "medication_id": {
-          "name": "Medication ID",
-          "description": "ID of the medication whose stock should change."
-        },
-        "delta": {
-          "name": "Adjustment",
-          "description": "Positive or negative amount to add to the current stock."
-        }
-      }
-    },
     "add_package": {
       "name": "Add package",
-      "description": "Adds a physical package and switches the medication to automatic package stock.",
+      "description": "Adds a physical package and recalculates the medication stock from all packages.",
       "fields": {
         "medication_id": { "name": "Medication ID", "description": "Medication contained in the package." },
         "quantity": { "name": "Quantity", "description": "Initial amount in the package." },

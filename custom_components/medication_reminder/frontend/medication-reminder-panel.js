@@ -54,8 +54,8 @@ class MedicationReminderPanel extends HTMLElement {
     return this.hass.connection.sendMessagePromise({ type: `medication_reminder/${type}`, ...payload });
   }
 
-  async load(showSpinner = true) {
-    if (this.loading || !this.hass || (!showSpinner && this.hasActiveDraft())) return;
+  async load(showSpinner = true, force = false) {
+    if (this.loading || !this.hass || (!showSpinner && !force && this.hasActiveDraft())) return;
     this.loading = true;
     if (showSpinner) this.render();
     try {
@@ -68,7 +68,7 @@ class MedicationReminderPanel extends HTMLElement {
       this.showToast(this.errorText(error), true);
     } finally {
       this.loading = false;
-      if (showSpinner || !this.hasActiveDraft()) this.render();
+      if (showSpinner || force || !this.hasActiveDraft()) this.render();
     }
   }
 
@@ -78,7 +78,6 @@ class MedicationReminderPanel extends HTMLElement {
     const translations = {
       "Medication Reminder is not configured": "error.not_configured",
       "Medication is still used by an intake": "error.medication_in_use",
-      "Stock cannot become negative": "error.negative_stock",
       "Taken dose exceeds the remaining planned dose": "error.dose_exceeds",
       "No dose was selected": "error.no_dose",
       "Snooze time must be in the future": "error.future_snooze",
@@ -94,7 +93,6 @@ class MedicationReminderPanel extends HTMLElement {
       "Invalid snooze time": "error.invalid_snooze",
       "Time must use HH:MM": "error.invalid_time_generic",
       "Invalid time": "error.invalid_time_generic",
-      "Package-tracked stock must be adjusted on a package": "error.package_stock_adjust",
       "Package quantity must be greater than zero": "error.package_quantity",
       "Package nickname must be unique per medication": "error.package_nickname",
       "Intake time must not be in the future": "error.unplanned_future",
@@ -302,9 +300,9 @@ class MedicationReminderPanel extends HTMLElement {
     const openPackages = packages.filter((pack) => pack.remaining_quantity > 0);
     return `<article class="stock-card ${low ? "is-low" : ""} ${this.highlightId === item.id ? "highlight" : ""}"><div class="stock-top"><div class="medicine-icon"><ha-icon icon="mdi:pill"></ha-icon></div><span class="badge ${low ? "warning" : "ok"}">${this.t(low ? "stock.reorder" : "stock.available")}</span></div>
       <h3>${esc(item.name)}</h3><p>${[item.manufacturer, item.strength, item.form].filter(Boolean).map(esc).join(" · ") || this.t("stock.no_details")}</p>
-      <div class="stock-value"><strong>${this.formatNumber(item.stock)}</strong><span>${esc(item.unit)}</span></div><div class="progress"><i style="width:${percentage}%"></i></div><small>${this.t("stock.warning_at", { amount: this.formatNumber(item.low_stock_threshold), unit: esc(item.unit) })} · ${this.t(item.stock_mode === "packages" ? "stock.automatic" : "stock.manual")}</small>
+      <div class="stock-value"><strong>${this.formatNumber(item.stock)}</strong><span>${esc(item.unit)}</span></div><div class="progress"><i style="width:${percentage}%"></i></div><small>${this.t("stock.warning_at", { amount: this.formatNumber(item.low_stock_threshold), unit: esc(item.unit) })} · ${this.t("stock.automatic")}</small>
       ${!compact ? `<div class="package-section"><div class="package-heading"><b>${this.t("stock.packages")}</b><span>${openPackages.length}</span></div>${packages.length ? packages.map((pack) => this.packageCard(pack, item)).join("") : `<small>${this.t("stock.no_packages")}</small>`}</div>` : openPackages.length ? `<p class="next-package">${this.t("stock.next_package", { package: esc(openPackages[0].nickname) })}</p>` : ""}
-      <div class="card-actions">${item.stock_mode !== "packages" ? `<button class="ghost" data-action="adjust-stock" data-id="${item.id}"><ha-icon icon="mdi:plus-minus-variant"></ha-icon>${this.t("stock.adjust")}</button>` : ""}<button class="ghost" data-action="new-package" data-id="${item.id}"><ha-icon icon="mdi:package-variant-plus"></ha-icon>${this.t("stock.add_package")}</button><button class="ghost icon-only" data-action="show-code" data-kind="medication" data-id="${item.id}" data-label="${esc(item.name)}" title="${this.t("package.code")}"><ha-icon icon="mdi:qrcode"></ha-icon></button>${compact ? `<button class="text" data-tab="medications">${this.t("common.details")}</button>` : `<button class="text" data-action="edit-medication" data-id="${item.id}">${this.t("common.edit")}</button><button class="text danger-text" data-action="delete-medication" data-id="${item.id}">${this.t("common.delete")}</button>`}</div></article>`;
+      <div class="card-actions"><button class="ghost" data-action="new-package" data-id="${item.id}"><ha-icon icon="mdi:package-variant-plus"></ha-icon>${this.t("stock.add_package")}</button><button class="ghost icon-only" data-action="show-code" data-kind="medication" data-id="${item.id}" data-label="${esc(item.name)}" title="${this.t("package.code")}"><ha-icon icon="mdi:qrcode"></ha-icon></button>${compact ? `<button class="text" data-tab="medications">${this.t("common.details")}</button>` : `<button class="text" data-action="edit-medication" data-id="${item.id}">${this.t("common.edit")}</button><button class="text danger-text" data-action="delete-medication" data-id="${item.id}">${this.t("common.delete")}</button>`}</div></article>`;
   }
 
   packageCard(pack, medication) {
@@ -370,7 +368,8 @@ class MedicationReminderPanel extends HTMLElement {
         ${this.field("name", this.t("med_form.name"), item.name, true, this.t("med_form.name_placeholder"))}${this.field("manufacturer", this.t("med_form.manufacturer"), item.manufacturer, false, this.t("med_form.manufacturer_placeholder"))}
         ${this.field("barcode", this.t("med_form.barcode"), item.barcode, false, this.t("med_form.barcode_placeholder"))}${this.field("strength", this.t("med_form.strength"), item.strength, false, this.t("med_form.strength_placeholder"))}
         ${this.field("form", this.t("med_form.form"), item.form, false, this.t("med_form.form_placeholder"))}${this.field("unit", this.t("med_form.unit"), item.unit || this.t("med_form.unit_default"), true, this.t("med_form.unit_placeholder"))}
-        ${this.field("stock", this.t("med_form.stock"), item.stock ?? 0, true, "", "number", "0", "0.001")}${this.field("low_stock_threshold", this.t("med_form.threshold"), item.low_stock_threshold ?? 0, true, "", "number", "0", "0.001")}
+        ${this.field("low_stock_threshold", this.t("med_form.threshold"), item.low_stock_threshold ?? 0, true, "", "number", "0", "0.001")}
+        <div class="field"><span>${this.t("med_form.stock_calculated")}</span><small>${this.t(item.id ? "med_form.stock_calculated_help" : "med_form.package_next")}</small></div>
         <label class="field full"><span>${this.t("med_form.notes")}</span><textarea name="notes" rows="3" placeholder="${this.t("med_form.notes_placeholder")}">${esc(item.notes || "")}</textarea></label>
       </div><div class="modal-actions"><button type="button" class="ghost" data-action="close-modal">${this.t("common.cancel")}</button><button class="primary" type="submit"><ha-icon icon="mdi:content-save-outline"></ha-icon>${this.t("common.save")}</button></div></form>
     </section></div>`;
@@ -382,6 +381,7 @@ class MedicationReminderPanel extends HTMLElement {
     return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-label="${this.t("package_form.dialog_label")}" data-modal-stop>
       <div class="modal-head"><div><p class="eyebrow">${this.t("package_form.eyebrow")}</p><h2>${this.t(item.id ? "package_form.edit_title" : "package_form.new_title")}</h2></div><button class="ghost icon-only" data-action="close-modal" title="${this.t("common.cancel")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
       <form data-form="package"><input type="hidden" name="id" value="${esc(item.id || "")}"><div class="form-grid">
+        ${this.modal.stepTwo ? `<div class="field full"><span>${this.t("package_form.step_two")}</span><small>${this.t("package_form.step_two_help")}</small></div>` : ""}
         <label class="field full"><span>${this.t("package_form.medication")} *</span><select name="medication_id" required ${item.id ? "disabled" : ""}>${this.state.medications.map((med) => `<option value="${med.id}" ${med.id === medicationId ? "selected" : ""}>${esc(med.name)} (${esc(med.unit)})</option>`).join("")}</select>${item.id ? `<input type="hidden" name="medication_id" value="${esc(medicationId)}">` : ""}</label>
         <label class="field"><span>${this.t("package_form.nickname")}</span><input name="nickname" list="package-nicknames" value="${esc(item.nickname || "")}"><datalist id="package-nicknames">${PACKAGE_NICKNAMES.map((name) => `<option value="${name}"></option>`).join("")}</datalist><small>${this.t("package_form.nickname_help")}</small></label>
         ${item.id ? this.field("remaining_quantity", `${this.t("package_form.remaining")} (${esc(medication?.unit || "")})`, item.remaining_quantity, true, "", "number", "0", "0.001") : this.field("quantity", `${this.t("package_form.quantity")} (${esc(medication?.unit || "")})`, 1, true, "", "number", "0.001", "0.001")}
@@ -439,11 +439,15 @@ class MedicationReminderPanel extends HTMLElement {
 
   renderToast() { return this.toast ? `<div class="toast ${this.toast.error ? "error" : ""}"><ha-icon icon="${this.toast.error ? "mdi:alert-circle-outline" : "mdi:check-circle-outline"}"></ha-icon>${esc(this.toast.message)}</div>` : ""; }
 
-  async mutate(operation, success) {
+  async mutate(operation, success, afterSuccess = null) {
     try {
-      await operation();
+      const result = await operation();
       this.modal = null;
-      await this.load(false);
+      await this.load(false, true);
+      if (afterSuccess) {
+        afterSuccess(result);
+        this.render();
+      }
       this.showToast(success);
     } catch (error) { this.showToast(this.errorText(error), true); }
   }
@@ -497,11 +501,6 @@ class MedicationReminderPanel extends HTMLElement {
     if (action === "delete-medication" && confirm(this.t("confirm.delete_medication"))) return this.mutate(() => this.call("delete_medication", { medication_id: id }), this.t("action.medication_deleted"));
     if (action === "delete-regimen" && confirm(this.t("confirm.delete_regimen"))) return this.mutate(() => this.call("delete_regimen", { regimen_id: id }), this.t("action.regimen_deleted"));
     if (action === "delete-package" && confirm(this.t("confirm.delete_package"))) return this.mutate(() => this.call("delete_package", { package_id: id }), this.t("action.package_deleted"));
-    if (action === "adjust-stock") {
-      const value = prompt(this.t("prompt.stock"), "1");
-      if (value !== null && Number.isFinite(Number(value)) && Number(value) !== 0) return this.mutate(() => this.call("adjust_stock", { medication_id: id, delta: Number(value) }), this.t("action.stock_updated"));
-      return;
-    }
     if (action === "take-selected") return this.takeSelected(id, button.closest(".ticket"));
     if (action === "snooze") return this.mutate(() => this.call("snooze", { occurrence_id: id, minutes: Number(button.dataset.minutes) }), this.t("action.reminder_snoozed"));
     if (action === "snooze-custom") {
@@ -550,9 +549,14 @@ class MedicationReminderPanel extends HTMLElement {
     const data = new FormData(form);
     if (form.dataset.form === "medication") {
       const medication = Object.fromEntries(data.entries());
-      medication.stock = Number(medication.stock); medication.low_stock_threshold = Number(medication.low_stock_threshold);
+      medication.low_stock_threshold = Number(medication.low_stock_threshold);
+      const isNew = !medication.id;
       if (!medication.id) delete medication.id;
-      return this.mutate(() => this.call("save_medication", { medication }), this.t("action.medication_saved"));
+      return this.mutate(
+        () => this.call("save_medication", { medication }),
+        this.t("action.medication_saved"),
+        isNew ? (saved) => { this.modal = { type: "package", medicationId: saved.id, item: {}, stepTwo: true }; } : null,
+      );
     }
     if (form.dataset.form === "package") {
       const packageData = Object.fromEntries(data.entries());

@@ -129,20 +129,17 @@ class MedicationManager:
                 self._find("medications", medication_id) if medication_id else None
             )
             normalized_raw = dict(raw)
-            if existing:
-                normalized_raw.setdefault(
-                    "stock_mode", existing.get("stock_mode", "manual")
-                )
-                if self._packages_for(existing["id"]):
-                    normalized_raw["stock_mode"] = "packages"
+            normalized_raw["stock_mode"] = "packages"
+            normalized_raw["stock"] = (
+                self._package_stock(existing["id"]) if existing else 0
+            )
             medication = normalize_medication(normalized_raw, medication_id)
             medication["scan_code"] = (
                 existing.get("scan_code")
                 if existing and existing.get("scan_code")
                 else self._new_scan_code(f"medications:{medication['id']}")
             )
-            if medication["stock_mode"] == "packages":
-                medication["stock"] = self._package_stock(medication["id"])
+            medication["stock"] = self._package_stock(medication["id"])
             if existing:
                 self.data["medications"][self.data["medications"].index(existing)] = (
                     medication
@@ -169,21 +166,6 @@ class MedicationManager:
                 if package["medication_id"] != medication_id
             ]
             await self._changed()
-
-    async def async_adjust_stock(
-        self, medication_id: str, delta: float
-    ) -> dict[str, Any]:
-        """Adjust stock while preventing a negative result."""
-        async with self._lock:
-            medication = self._require("medications", medication_id)
-            if medication.get("stock_mode") == "packages":
-                raise ValueError("Package-tracked stock must be adjusted on a package")
-            new_stock = round(float(medication["stock"]) + float(delta), 3)
-            if not math.isfinite(new_stock) or new_stock < 0:
-                raise ValueError("Stock cannot become negative")
-            medication["stock"] = new_stock
-            await self._changed()
-            return public_data(medication)
 
     async def async_save_package(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Create or update a physical package and recalculate stock."""

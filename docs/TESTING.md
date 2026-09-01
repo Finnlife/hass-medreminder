@@ -73,8 +73,10 @@ phone renders and returns notification actions correctly.
   or Cancel button.
 - Keep each form open for more than 30 seconds while typing and trigger a validation
   error; confirm no entered field or text selection is reset.
-- Create, edit, and delete medications with all optional metadata.
-- Adjust stock positively and negatively; reject negative resulting stock.
+- Create a medication with all optional metadata. Confirm there is no current-stock
+  field and that step 2 opens automatically for the first package.
+- Cancel step 2 and confirm stock is zero. Add a package and confirm stock equals
+  the sum of its package remainders and cannot be edited directly.
 - Add multiple packages with different expiry dates and LOT numbers. Verify that
   stock is their sum, nicknames are unique, and the earliest expiry is recommended.
 - Record a dose larger than the first package remainder. Verify a split across the
@@ -93,6 +95,8 @@ phone renders and returns notification actions correctly.
   payload is exactly `med` plus five unambiguous letters/digits and contains no URL.
 - Restart Home Assistant with open, snoozed, and completed tickets; verify storage,
   due generation, package allocation snapshots, and history.
+- Upgrade data containing legacy manual stock and verify it becomes a `Legacy`
+  package with the same remaining quantity.
 - Check global, medication, and package entities, action schemas, events, desktop
   layout, and a narrow mobile viewport.
 - Enter a wrong delete confirmation and verify nothing changes. Then use `DELETE`,

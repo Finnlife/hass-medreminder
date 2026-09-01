@@ -57,23 +57,9 @@
         }
       }
     },
-    "adjust_stock": {
-      "name": "Bestand anpassen",
-      "description": "Addiert eine positive oder negative Menge zum Medikamentenbestand.",
-      "fields": {
-        "medication_id": {
-          "name": "Medikamenten-ID",
-          "description": "ID des Medikaments, dessen Bestand geändert werden soll."
-        },
-        "delta": {
-          "name": "Änderung",
-          "description": "Positive oder negative Menge, die zum aktuellen Bestand addiert wird."
-        }
-      }
-    },
     "add_package": {
       "name": "Packung hinzufügen",
-      "description": "Fügt eine physische Packung hinzu und stellt das Medikament auf automatischen Packungsbestand um.",
+      "description": "Fügt eine physische Packung hinzu und berechnet den Medikamentenbestand aus allen Packungen neu.",
       "fields": {
         "medication_id": { "name": "Medikamenten-ID", "description": "Medikament in dieser Packung." },
         "quantity": { "name": "Menge", "description": "Anfangsmenge in der Packung." },

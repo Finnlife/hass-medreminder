@@ -23,7 +23,6 @@ def async_register_websocket_api(hass: HomeAssistant) -> None:
         ws_get_state,
         ws_save_medication,
         ws_delete_medication,
-        ws_adjust_stock,
         ws_save_package,
         ws_delete_package,
         ws_save_regimen,
@@ -87,22 +86,6 @@ async def ws_delete_medication(hass, connection, msg) -> None:
         connection,
         msg,
         lambda: _manager(hass).async_delete_medication(msg["medication_id"]),
-    )
-
-
-@websocket_api.websocket_command(
-    {
-        vol.Required("type"): f"{DOMAIN}/adjust_stock",
-        vol.Required("medication_id"): str,
-        vol.Required("delta"): vol.Coerce(float),
-    }
-)
-@websocket_api.async_response
-async def ws_adjust_stock(hass, connection, msg) -> None:
-    await _respond(
-        connection,
-        msg,
-        lambda: _manager(hass).async_adjust_stock(msg["medication_id"], msg["delta"]),
     )
 
 

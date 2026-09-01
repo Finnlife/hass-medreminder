@@ -46,8 +46,12 @@ class MigrationTests(unittest.TestCase):
         }
         migrated = migrations.migrate_storage(1, 1, old)
         self.assertEqual(8, migrated["medications"][0]["stock"])
-        self.assertEqual("manual", migrated["medications"][0]["stock_mode"])
-        self.assertEqual([], migrated["packages"])
+        self.assertEqual("packages", migrated["medications"][0]["stock_mode"])
+        self.assertEqual(1, len(migrated["packages"]))
+        legacy = migrated["packages"][0]
+        self.assertEqual("Legacy", legacy["nickname"])
+        self.assertEqual(8, legacy["remaining_quantity"])
+        self.assertRegex(legacy["scan_code"], r"^med[A-Z2-9]{5}$")
         self.assertEqual([], migrated["occurrences"][0]["items"][0]["allocations"])
         self.assertRegex(migrated["medications"][0]["scan_code"], r"^med[A-Z2-9]{5}$")
         self.assertRegex(migrated["occurrences"][0]["scan_code"], r"^med[A-Z2-9]{5}$")
@@ -55,7 +59,7 @@ class MigrationTests(unittest.TestCase):
 
     def test_current_shape_migration_is_idempotent(self) -> None:
         once = migrations.migrate_storage(1, 1, {"medications": []})
-        twice = migrations.migrate_storage(1, 3, once)
+        twice = migrations.migrate_storage(1, 4, once)
         self.assertEqual(once, twice)
 
 

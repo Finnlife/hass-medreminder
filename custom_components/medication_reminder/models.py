@@ -35,13 +35,9 @@ def normalize_medication(
     if not name:
         raise ValueError("Name is required")
     unit = str(raw.get("unit", "pieces")).strip() or "pieces"
-    stock = _non_negative_number(raw.get("stock", 0), "stock")
     threshold = _non_negative_number(
         raw.get("low_stock_threshold", 0), "low_stock_threshold"
     )
-    stock_mode = str(raw.get("stock_mode", "manual"))
-    if stock_mode not in ("manual", "packages"):
-        raise ValueError("Unsupported stock mode")
     return {
         "id": existing_id or str(raw.get("id") or new_id()),
         "name": name,
@@ -50,8 +46,8 @@ def normalize_medication(
         "form": str(raw.get("form", "")).strip(),
         "strength": str(raw.get("strength", "")).strip(),
         "unit": unit,
-        "stock": stock,
-        "stock_mode": stock_mode,
+        "stock": 0,
+        "stock_mode": "packages",
         "low_stock_threshold": threshold,
         "notes": str(raw.get("notes", "")).strip(),
     }

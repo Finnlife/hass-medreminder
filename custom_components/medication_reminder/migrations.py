@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import math
 from typing import Any
 
 from .const import STORAGE_MINOR_VERSION, STORAGE_VERSION
@@ -34,8 +35,7 @@ def ensure_current_data(raw: dict[str, Any] | None) -> dict[str, Any]:
     data.setdefault("regimens", [])
     data.setdefault("occurrences", [])
     data.setdefault("last_generated_at", None)
-    for medication in data["medications"]:
-        medication.setdefault("stock_mode", "manual")
+    _migrate_stock_to_packages(data)
     for occurrence in data["occurrences"]:
         occurrence.setdefault("unplanned", False)
         occurrence.setdefault("regimen_name", None)
@@ -43,3 +43,55 @@ def ensure_current_data(raw: dict[str, Any] | None) -> dict[str, Any]:
             item.setdefault("allocations", [])
     ensure_scan_codes(data)
     return data
+
+
+def _migrate_stock_to_packages(data: dict[str, Any]) -> None:
+    """Make packages the sole stock source while preserving legacy stock."""
+    packages = data["packages"]
+    used_ids = {str(package.get("id", "")) for package in packages}
+    for medication in data["medications"]:
+        medication_id = str(medication["id"])
+        if medication.get("stock_mode") != "packages":
+            try:
+                legacy_stock = float(medication.get("stock", 0))
+            except (TypeError, ValueError):
+                legacy_stock = 0
+            if math.isfinite(legacy_stock) and legacy_stock > 0:
+                package_id = f"legacy_{medication_id}"
+                suffix = 2
+                while package_id in used_ids:
+                    package_id = f"legacy_{medication_id}_{suffix}"
+                    suffix += 1
+                used_ids.add(package_id)
+                nicknames = {
+                    str(package.get("nickname", "")).casefold()
+                    for package in packages
+                    if str(package.get("medication_id", "")) == medication_id
+                }
+                nickname = "Legacy"
+                suffix = 2
+                while nickname.casefold() in nicknames:
+                    nickname = f"Legacy {suffix}"
+                    suffix += 1
+                packages.append(
+                    {
+                        "id": package_id,
+                        "medication_id": medication_id,
+                        "nickname": nickname,
+                        "lot_number": "",
+                        "expires_on": None,
+                        "external_code": "",
+                        "initial_quantity": round(legacy_stock, 3),
+                        "remaining_quantity": round(legacy_stock, 3),
+                        "created_at": None,
+                    }
+                )
+        medication["stock_mode"] = "packages"
+        medication["stock"] = round(
+            sum(
+                float(package.get("remaining_quantity", 0))
+                for package in packages
+                if str(package.get("medication_id", "")) == medication_id
+            ),
+            3,
+        )

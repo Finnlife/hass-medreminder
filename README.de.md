@@ -12,7 +12,8 @@ bei deutscher Home-Assistant-Sprache vollständig deutsch dargestellt.
 ## Funktionen
 
 - Medikamente mit Hersteller, Barcode/PZN, Wirkstärke, Darreichungsform,
-  Bestandseinheit, Bestand, Warnschwelle und Notizen
+  Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen öffnet sich direkt
+  Schritt 2 für die erste physische Packung
 - Wochenpläne mit eigener Uhrzeit je Wochentag und mehreren Uhrzeiten pro Tag
 - Intervallpläne alle x Tage ab einem frei wählbaren Startdatum
 - Eine fällige Intervall-Einnahme auf morgen verschieben und damit den gesamten
@@ -61,7 +62,7 @@ mit LOT, MHD, Anfangsmenge und aufgedrucktem Code als Attribute. Die endgültige
 Entity-IDs vergibt Home Assistant.
 
 Aktionen: `medication_reminder.record_intake`, `medication_reminder.snooze`,
-`medication_reminder.adjust_stock`, `medication_reminder.add_package`,
+`medication_reminder.add_package`,
 `medication_reminder.record_unplanned_intake` und
 `medication_reminder.postpone_interval` sowie
 `medication_reminder.delete_all_data` (benötigt `confirmation: DELETE`).
@@ -77,8 +78,10 @@ abgeschlossene Vorgänge werden gespeichert; offene Vorgänge bleiben erhalten.
 `DELETE` sämtliche Medication-Reminder-Daten dauerhaft löschen. Die Integration
 selbst bleibt installiert. Dieselbe serverseitige Bestätigung gilt für die
 Home-Assistant-Aktion.
-Das Speicherschema ist versioniert; die aktuelle Migration ergänzt Packungen und
-Abbuchungs-Snapshots, ohne vorhandene Einnahmehistorie umzuschreiben. Das Projekt
+Das Speicherschema ist versioniert; die aktuelle Migration überführt vorhandenen
+manuellen Bestand verlustfrei in eine physische `Legacy`-Packung. Der Bestand wird
+danach immer aus den Restmengen der Packungen berechnet, ohne die Einnahmehistorie
+umzuschreiben. Das Projekt
 ist weiterhin vor Version 1.0. Vor 0.x-Updates sollte deshalb eine Sicherung von
 `.storage/medication_reminder.data` erstellt werden; der dauerhafte
 Kompatibilitätsvertrag gilt erst ab Version 1.0.

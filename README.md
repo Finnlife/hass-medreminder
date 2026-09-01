@@ -11,7 +11,8 @@ setup, **Medications** appears as a dedicated sidebar panel.
 ## Features
 
 - Medication records with manufacturer, barcode/product code, strength, dosage
-  form, stock unit, current stock, warning threshold, and notes
+  form, stock unit, warning threshold, and notes; creating one immediately opens
+  a second step for its first physical package
 - Weekly schedules with different times per weekday and multiple times per day
 - Interval schedules for every x days from a chosen start date
 - Move a due interval intake to tomorrow and shift the complete future cycle
@@ -62,7 +63,6 @@ Actions:
 
 - `medication_reminder.record_intake`
 - `medication_reminder.snooze`
-- `medication_reminder.adjust_stock`
 - `medication_reminder.add_package`
 - `medication_reminder.record_unplanned_intake`
 - `medication_reminder.postpone_interval`
@@ -88,8 +88,9 @@ The trash button in the panel header can permanently delete all Medication Remin
 records after a second confirmation with `DELETE`. This keeps the integration itself
 installed. The same server-side confirmation is required by the Home Assistant action.
 
-The storage schema is versioned and the current migration adds package tracking and
-allocation snapshots without rewriting existing intake history. This project is still
+The storage schema is versioned. The current migration converts any legacy manual
+stock into a physical `Legacy` package and keeps intake history unchanged. Stock is
+always recalculated from package remainders. This project is still
 pre-1.0: back up `.storage/medication_reminder.data` before upgrading because the
 storage compatibility contract is not considered final until version 1.0.
 

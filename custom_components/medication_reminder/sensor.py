@@ -97,7 +97,7 @@ class MedicationStockSensor(MedicationEntity, SensorEntity):
             "manufacturer": self.medication.get("manufacturer"),
             "barcode": self.medication.get("barcode"),
             "strength": self.medication.get("strength"),
-            "stock_mode": self.medication.get("stock_mode", "manual"),
+            "stock_mode": self.medication.get("stock_mode", "packages"),
             "scan_code": self.medication.get("scan_code"),
             "package_count": len(
                 [

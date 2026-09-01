@@ -84,7 +84,6 @@ class LocalizationTests(unittest.TestCase):
         for service in (
             "record_intake",
             "snooze",
-            "adjust_stock",
             "add_package",
             "record_unplanned_intake",
             "postpone_interval",

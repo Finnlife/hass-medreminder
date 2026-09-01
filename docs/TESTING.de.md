@@ -73,8 +73,10 @@ Darstellung und Rückmeldung einer echten Smartphone-Notification.
   Abbrechen dürfen ihn schließen.
 - Jedes Formular länger als 30 Sekunden während der Eingabe offen lassen und einen
   Validierungsfehler auslösen; kein Feld und keine Textauswahl darf zurückgesetzt werden.
-- Medikamente mit allen optionalen Angaben anlegen, bearbeiten und löschen.
-- Bestand positiv und negativ ändern; einen negativen Endbestand ablehnen.
+- Ein Medikament mit allen optionalen Angaben anlegen. Es darf kein Feld für den
+  aktuellen Bestand geben; Schritt 2 für die erste Packung muss direkt erscheinen.
+- Schritt 2 abbrechen und Bestand null prüfen. Eine Packung anlegen und prüfen, dass
+  der Bestand ihrer Restsumme entspricht und nicht direkt bearbeitet werden kann.
 - Mehrere Packungen mit verschiedenen MHDs und LOT-Nummern anlegen. Summe,
   eindeutige Spitznamen und Empfehlung der Packung mit nächstem MHD prüfen.
 - Eine Dosis erfassen, die größer als der Rest der ersten Packung ist. Die Aufteilung
@@ -93,6 +95,8 @@ Darstellung und Rückmeldung einer echten Smartphone-Notification.
   keine URL enthalten.
 - Home Assistant mit offenen, schlummernden und erledigten Tickets neu starten;
   Persistenz, Nacherzeugung, Packungs-Snapshots und Verlauf prüfen.
+- Daten mit altem manuellem Bestand aktualisieren und prüfen, dass eine `Legacy`-
+  Packung mit derselben Restmenge entsteht.
 - Globale, Medikamenten- und Packungsentitäten, Aktionsschemata, Events sowie
   Desktop- und Mobilansicht prüfen.
 - Eine falsche Löschbestätigung eingeben und unveränderte Daten prüfen. Danach mit

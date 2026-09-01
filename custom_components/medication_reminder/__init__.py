@@ -45,7 +45,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass=hass,
             webcomponent_name="medication-reminder-panel",
             frontend_url_path=PANEL_URL,
-            module_url=f"{PANEL_STATIC_URL}/medication-reminder-panel.js?v=0.3.3",
+            module_url=f"{PANEL_STATIC_URL}/medication-reminder-panel.js?v=0.4.0",
             sidebar_title="Medications",
             sidebar_icon="mdi:pill-multiple",
             require_admin=False,
@@ -83,11 +83,6 @@ def _register_services(hass: HomeAssistant) -> None:
         await _active_manager(hass).async_snooze(
             call.data["occurrence_id"],
             dt_util.now() + timedelta(minutes=call.data["minutes"]),
-        )
-
-    async def adjust_stock(call: ServiceCall) -> None:
-        await _active_manager(hass).async_adjust_stock(
-            call.data["medication_id"], call.data["delta"]
         )
 
     async def add_package(call: ServiceCall) -> None:
@@ -165,17 +160,6 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Required("minutes", default=30): vol.All(
                     vol.Coerce(int), vol.Range(min=1, max=10080)
                 ),
-            }
-        ),
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "adjust_stock",
-        adjust_stock,
-        schema=vol.Schema(
-            {
-                vol.Required("medication_id"): cv.string,
-                vol.Required("delta"): vol.Coerce(float),
             }
         ),
     )

@@ -223,15 +223,33 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual("taken", manager.data["occurrences"][0]["status"])
 
-    async def test_nan_stock_adjustment_is_rejected(self) -> None:
+    async def test_saved_medication_stock_is_always_derived_from_packages(self) -> None:
         manager = self.manager_with_occurrence(second_stock=10)
-        with self.assertRaises(ValueError):
-            await manager.async_adjust_stock("a", float("nan"))
-        self.assertEqual(10.0, manager.data["medications"][0]["stock"])
+        manager.data["packages"] = [
+            {
+                "id": "box",
+                "medication_id": "a",
+                "nickname": "Apollo",
+                "remaining_quantity": 4.5,
+            }
+        ]
+        updated = await manager.async_save_medication(
+            {"id": "a", "name": "A", "stock": 999, "low_stock_threshold": 2}
+        )
+        created = await manager.async_save_medication(
+            {"name": "C", "stock": 999, "low_stock_threshold": 1}
+        )
+        self.assertEqual(4.5, updated["stock"])
+        self.assertEqual(0, created["stock"])
+        self.assertEqual("packages", updated["stock_mode"])
+        self.assertEqual("packages", created["stock_mode"])
 
-    def test_nan_medication_value_is_rejected(self) -> None:
-        with self.assertRaises(ValueError):
-            models_module.normalize_medication({"name": "A", "stock": "nan"})
+    def test_normalizer_ignores_supplied_stock(self) -> None:
+        medication = models_module.normalize_medication(
+            {"name": "A", "stock": "nan"}
+        )
+        self.assertEqual(0, medication["stock"])
+        self.assertEqual("packages", medication["stock_mode"])
 
     async def test_notification_payload_uses_configured_language(self) -> None:
         manager = self.manager_with_occurrence(second_stock=10)

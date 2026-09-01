@@ -21,17 +21,6 @@ snooze:
           min: 1
           max: 10080
           mode: box
-adjust_stock:
-  fields:
-    medication_id:
-      required: true
-      selector:
-        text:
-    delta:
-      required: true
-      selector:
-        number:
-          mode: box
 add_package:
   fields:
     medication_id:

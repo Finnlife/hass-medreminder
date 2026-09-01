@@ -33,8 +33,8 @@ class FrontendContractTests(unittest.TestCase):
         panel = PANEL.read_text(encoding="utf-8")
         self.assertNotRegex(panel, re.compile(r"this\.call\([^\n]+\{\s*id[,}]"))
         self.assertIn("{ occurrence_id: id, minutes:", panel)
-        self.assertIn("{ medication_id: id, delta:", panel)
         self.assertIn("{ package_id: id }", panel)
+        self.assertNotIn('this.call("adjust_stock"', panel)
 
     def test_modal_backdrop_has_no_close_action(self) -> None:
         panel = PANEL.read_text(encoding="utf-8")
@@ -69,9 +69,9 @@ class FrontendContractTests(unittest.TestCase):
 
     def test_background_refresh_and_toasts_preserve_form_drafts(self) -> None:
         panel = PANEL.read_text(encoding="utf-8")
-        self.assertIn("(!showSpinner && this.hasActiveDraft())", panel)
+        self.assertIn("(!showSpinner && !force && this.hasActiveDraft())", panel)
         self.assertIn(
-            "if (showSpinner || !this.hasActiveDraft()) this.render();", panel
+            "if (showSpinner || force || !this.hasActiveDraft()) this.render();", panel
         )
         self.assertIn("this.renderToastOnly();", panel)
         show_toast = panel[
@@ -95,6 +95,14 @@ class FrontendContractTests(unittest.TestCase):
             panel,
         )
         self.assertIn('vol.Required("confirmation")', backend)
+
+    def test_medication_creation_uses_package_only_two_step_stock(self) -> None:
+        panel = PANEL.read_text(encoding="utf-8")
+        self.assertNotIn('this.field("stock"', panel)
+        self.assertNotIn('data-action="adjust-stock"', panel)
+        self.assertIn('stepTwo: true', panel)
+        self.assertIn('medicationId: saved.id', panel)
+        self.assertIn('this.modal.stepTwo', panel)
 
 
 if __name__ == "__main__":
