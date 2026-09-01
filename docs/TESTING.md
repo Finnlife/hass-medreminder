@@ -93,6 +93,9 @@ phone renders and returns notification actions correctly.
 - Reuse an old notification action and confirm stock is not deducted twice.
 - Generate medication, package, and intake QR codes. Verify that each scanned
   payload is exactly `med` plus five unambiguous letters/digits and contains no URL.
+- Export a one-day and multi-day history range as JSON and CSV. Verify inclusive
+  boundaries, nested package allocations in JSON, one CSV row per dose, UTF-8 text,
+  and that open tickets are excluded.
 - Restart Home Assistant with open, snoozed, and completed tickets; verify storage,
   due generation, package allocation snapshots, and history.
 - Upgrade data containing legacy manual stock and verify it becomes a `Legacy`

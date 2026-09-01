@@ -6,6 +6,7 @@ const PACKAGE_NICKNAMES = ["Apollo", "Bumblebee", "Comet", "Daisy", "Echo", "Fox
 const esc = (value) => String(value ?? "")
   .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
   .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+const dateInputValue = (date) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 class MedicationReminderPanel extends HTMLElement {
   constructor() {
     super();
@@ -20,6 +21,10 @@ class MedicationReminderPanel extends HTMLElement {
     this.language = "en";
     this.locale = "en-US";
     this.t = createTranslator("en");
+    const today = new Date();
+    const monthAgo = new Date(today); monthAgo.setDate(monthAgo.getDate() - 29);
+    this.historyFrom = dateInputValue(monthAgo);
+    this.historyTo = dateInputValue(today);
     this.shadowRoot.addEventListener("click", (event) => this.onClick(event));
     this.shadowRoot.addEventListener("submit", (event) => this.onSubmit(event));
     this.shadowRoot.addEventListener("change", (event) => this.onChange(event));
@@ -100,6 +105,7 @@ class MedicationReminderPanel extends HTMLElement {
       "Only interval schedules can shift their cycle": "error.interval_only",
       "Only due intakes can shift to tomorrow": "error.interval_only",
       "Invalid delete confirmation": "error.delete_confirmation",
+      "Start date must not be after end date": "error.export_range",
     };
     if (translations[message]) return this.t(translations[message]);
     if (message.startsWith("Not enough stock for ")) {
@@ -336,6 +342,11 @@ class MedicationReminderPanel extends HTMLElement {
   renderHistory() {
     const rows = this.state.occurrences.filter((item) => ["taken", "skipped"].includes(item.status)).sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at));
     return `<div class="page-title"><div><p class="eyebrow">${this.t("history.eyebrow")}</p><h2>${this.t("history.title")}</h2><p>${this.t("history.subtitle")}</p></div></div>
+      <section class="history-export"><div><strong>${this.t("history.export_title")}</strong><small>${this.t("history.export_help")}</small></div>
+        <label class="field"><span>${this.t("history.export_from")}</span><input type="date" name="history_from" value="${esc(this.historyFrom)}"></label>
+        <label class="field"><span>${this.t("history.export_to")}</span><input type="date" name="history_to" value="${esc(this.historyTo)}"></label>
+        <div class="export-actions"><button class="ghost" data-action="export-history" data-format="json"><ha-icon icon="mdi:code-json"></ha-icon>${this.t("history.export_json")}</button><button class="primary" data-action="export-history" data-format="csv"><ha-icon icon="mdi:file-delimited-outline"></ha-icon>${this.t("history.export_csv")}</button></div>
+      </section>
       ${rows.length ? `<div class="table-wrap"><table><thead><tr><th>${this.t("history.status")}</th><th>${this.t("history.intake")}</th><th>${this.t("history.scheduled")}</th><th>${this.t("history.actual")}</th><th>${this.t("history.deviation")}</th><th>${this.t("history.doses")}</th></tr></thead><tbody>${rows.map((item) => {
         const regimen = this.regimen(item.regimen_id); const actual = item.taken_at ? new Date(item.taken_at) : null; const planned = new Date(item.scheduled_at);
         const diff = actual && item.status !== "skipped" ? Math.round((actual - planned) / 60000) : null;
@@ -470,6 +481,21 @@ class MedicationReminderPanel extends HTMLElement {
     } catch (error) { this.showToast(this.t("error.qr_failed"), true); }
   }
 
+  async exportHistory(format) {
+    if (!this.historyFrom || !this.historyTo || this.historyFrom > this.historyTo) return this.showToast(this.t("error.export_range"), true);
+    try {
+      const result = await this.call("export_history", { start_date: this.historyFrom, end_date: this.historyTo, format });
+      if (!result.count) return this.showToast(this.t("history.export_empty"), true);
+      const blob = new Blob([result.content], { type: result.mime_type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = result.filename; link.style.display = "none";
+      this.shadowRoot.append(link); link.click(); link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      this.showToast(this.t("history.export_done", { count: result.count }));
+    } catch (error) { this.showToast(this.errorText(error), true); }
+  }
+
   onClick(event) {
     const button = event.target.closest("button");
     if (!button) return;
@@ -514,6 +540,7 @@ class MedicationReminderPanel extends HTMLElement {
     if (action === "postpone-interval" && confirm(this.t("confirm.postpone_interval"))) return this.mutate(() => this.call("postpone_interval", { occurrence_id: id }), this.t("action.interval_postponed"));
     if (action === "show-code") return this.openCode(button.dataset.kind, id, button.dataset.label);
     if (action === "copy-code") return this.copyCode(button.dataset.value);
+    if (action === "export-history") return this.exportHistory(button.dataset.format);
     if (action === "add-dose") { this.addDoseRow(button); return; }
     if (action === "remove-dose") { if (button.closest(".item-editor").children.length > 1) button.closest(".dose-row").remove(); return; }
   }
@@ -536,6 +563,8 @@ class MedicationReminderPanel extends HTMLElement {
   }
 
   onChange(event) {
+    if (event.target.name === "history_from") { this.historyFrom = event.target.value; return; }
+    if (event.target.name === "history_to") { this.historyTo = event.target.value; return; }
     if (event.target.name === "schedule_type") {
       const form = event.target.form;
       form.querySelector(".schedule-weekly").classList.toggle("hidden", event.target.value !== "weekly");
@@ -616,10 +645,10 @@ class MedicationReminderPanel extends HTMLElement {
     button.primary,button.ghost,button.text{border-radius:11px;padding:10px 14px;display:inline-flex;gap:8px;align-items:center;justify-content:center;font-weight:700;border:0}button.primary{background:var(--primary-color,#07856c);color:#fff;box-shadow:0 5px 14px color-mix(in srgb,var(--primary-color,#07856c) 24%,transparent)}button.primary:hover{filter:brightness(1.06)}button.primary:disabled{opacity:.45;cursor:not-allowed}button.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}button.text{background:transparent;color:var(--primary-color,#07856c);padding:8px}.icon-only{width:42px;height:42px;padding:0!important}.danger-text{color:#c04440!important}
     .stock-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.stock-grid.large{grid-template-columns:repeat(3,1fr)}.stock-card{background:var(--surface);border:1px solid var(--line);border-radius:19px;padding:20px;box-shadow:0 6px 24px #122b240c}.stock-card.is-low{border-color:#e5a19c}.stock-top{display:flex;align-items:flex-start;justify-content:space-between}.medicine-icon{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:#e3f8f1;color:#087d68}.stock-card h3{font-size:18px;margin:16px 0 3px}.stock-card>p{color:var(--muted);font-size:12px;min-height:18px;margin:0}.stock-value{display:flex;align-items:baseline;gap:6px;margin-top:18px}.stock-value strong{font-size:32px;letter-spacing:-.04em}.stock-value span{color:var(--muted)}.progress{height:6px;border-radius:9px;background:var(--line);margin:10px 0 7px;overflow:hidden}.progress i{display:block;height:100%;background:linear-gradient(90deg,#07856c,#36c79e);border-radius:9px}.is-low .progress i{background:#d95750}.stock-card>small{color:var(--muted)}.card-actions{gap:6px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap}.package-section{margin-top:18px;padding-top:15px;border-top:1px solid var(--line);display:grid;gap:8px}.package-heading{display:flex;align-items:center;justify-content:space-between;font-size:12px}.package-heading span{color:var(--muted)}.package-section>small,.next-package{color:var(--muted);font-size:11px}.next-package{margin:10px 0 0!important}.package-row{display:grid;grid-template-columns:34px 1fr auto;gap:9px;align-items:center;padding:9px;border:1px solid var(--line);border-radius:12px}.package-row.empty-package{opacity:.55}.package-mark{width:32px;height:32px;border-radius:9px;background:#eef7f4;color:#07856c;display:grid;place-items:center}.package-mark ha-icon{--mdc-icon-size:18px}.package-row strong,.package-row small{display:block}.package-row strong{font-size:12px}.package-row small{font-size:10px;color:var(--muted);margin-top:2px}.package-actions{display:flex}.package-actions .icon-only{width:32px;height:32px}.highlight{outline:3px solid color-mix(in srgb,var(--primary-color,#07856c) 42%,transparent);outline-offset:2px}.pack-plan{color:#087d68!important;margin-top:4px}.history-packages{display:block;color:var(--muted);font-size:10px;margin-top:3px}
     .regimen-list{display:grid;gap:13px}.regimen-card{display:grid;grid-template-columns:54px 1fr auto;gap:17px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px}.regimen-card.inactive{opacity:.65}.regimen-icon{width:52px;height:52px;border-radius:16px;background:#e3f8f1;color:#07856c;display:grid;place-items:center}.regimen-icon ha-icon{--mdc-icon-size:27px}.regimen-title{gap:10px}.regimen-title h3{margin:0;font-size:19px}.schedule{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:13px;margin:8px 0}.schedule ha-icon{--mdc-icon-size:17px}.chips{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.chips span{padding:5px 9px;border-radius:8px;background:color-mix(in srgb,var(--primary-color,#07856c) 8%,transparent);font-size:12px}.regimen-main>small{color:var(--muted)}.vertical-actions{display:flex;gap:6px}
-    .table-wrap{overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:18px}table{border-collapse:collapse;width:100%;min-width:900px}th,td{text-align:left;padding:15px;border-bottom:1px solid var(--line);font-size:13px}th{font-size:10px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;background:color-mix(in srgb,var(--surface) 88%,var(--ink) 2%)}tbody tr:last-child td{border:0}.empty{grid-column:1/-1;text-align:center;padding:52px 20px;background:var(--surface);border:1px dashed var(--line);border-radius:19px}.empty ha-icon{--mdc-icon-size:42px;color:var(--primary-color,#07856c)}.empty h3{margin:12px 0 4px}.empty p{color:var(--muted);margin:0}
+    .history-export{display:grid;grid-template-columns:minmax(220px,1fr) 170px 170px auto;gap:14px;align-items:end;padding:18px;margin-bottom:16px;background:var(--surface);border:1px solid var(--line);border-radius:18px}.history-export>div:first-child{align-self:center}.history-export strong,.history-export small{display:block}.history-export small{color:var(--muted);margin-top:4px;line-height:1.35}.export-actions{display:flex;gap:8px}.table-wrap{overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:18px}table{border-collapse:collapse;width:100%;min-width:900px}th,td{text-align:left;padding:15px;border-bottom:1px solid var(--line);font-size:13px}th{font-size:10px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;background:color-mix(in srgb,var(--surface) 88%,var(--ink) 2%)}tbody tr:last-child td{border:0}.empty{grid-column:1/-1;text-align:center;padding:52px 20px;background:var(--surface);border:1px dashed var(--line);border-radius:19px}.empty ha-icon{--mdc-icon-size:42px;color:var(--primary-color,#07856c)}.empty h3{margin:12px 0 4px}.empty p{color:var(--muted);margin:0}
     .modal-backdrop{position:fixed;inset:0;z-index:30;background:#0a1613a3;backdrop-filter:blur(7px);display:grid;place-items:center;padding:20px}.modal{width:min(680px,100%);max-height:92vh;overflow:auto;background:var(--surface);border-radius:23px;box-shadow:0 30px 80px #0006}.modal.wide{width:min(920px,100%)}.modal-head{justify-content:space-between;padding:23px 26px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface);z-index:1}.modal-head h2{margin:2px 0;font-size:23px}.modal form{padding:24px 26px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:17px}.field{display:flex;flex-direction:column;gap:7px}.field.full{grid-column:1/-1}.field>span{font-size:12px;font-weight:750}.field small{color:var(--muted);line-height:1.35}.field input,.field select,.field textarea,.dose-row input,.dose-row select{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:var(--surface);color:var(--ink);outline:none}.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--primary-color,#07856c);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary-color,#07856c) 12%,transparent)}.modal-actions{justify-content:flex-end;gap:9px;margin-top:26px}.item-editor{display:grid;gap:8px}.dose-row{display:grid;grid-template-columns:2fr 1fr auto;gap:8px}.add-dose{align-self:flex-start;margin-top:6px}.week-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}.week-grid label{display:grid;grid-template-columns:auto 1fr 1.3fr;gap:8px;align-items:center;border:1px solid var(--line);padding:8px;border-radius:10px}.week-grid label>input:first-child{width:17px}.week-grid b{font-size:12px}.week-grid input[type=text]{padding:7px}.inline-fields{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.code-content{padding:25px;text-align:center}.code-content h3{margin:0 0 14px}.code-content img{display:block;width:min(220px,75%);aspect-ratio:1;margin:auto;border-radius:12px;background:#fff;padding:8px}.code-content p{color:var(--muted);font-size:13px;line-height:1.5}.code-content code{display:block;width:max-content;max-width:100%;margin:auto;padding:10px 16px;border-radius:10px;background:color-mix(in srgb,var(--ink) 5%,transparent);text-align:center;font-size:16px;font-weight:800;letter-spacing:.12em}.hidden{display:none!important}.toast{position:fixed;z-index:50;right:24px;bottom:24px;max-width:420px;padding:14px 17px;border-radius:13px;background:#063f35;color:#fff;display:flex;gap:10px;align-items:center;box-shadow:0 14px 40px #0004;animation:toast-in .22s ease}.toast.error{background:#9d302c}@keyframes toast-in{from{transform:translateY(14px);opacity:0}}.loading{min-height:100vh;display:grid;place-content:center;text-align:center;padding:20px}.loading p{color:var(--muted)}.loader{width:44px;height:44px;border:4px solid var(--line);border-top-color:var(--primary-color,#07856c);border-radius:50%;animation:spin .8s linear infinite;margin:auto}@keyframes spin{to{transform:rotate(360deg)}}footer{max-width:1440px;margin:auto;padding:18px clamp(20px,4vw,64px) 30px;border-top:1px solid var(--line);display:flex;justify-content:space-between;color:var(--muted);font-size:11px}.live{display:inline-block;width:7px;height:7px;background:#15af81;border-radius:50%;margin-right:6px}
-    @media(max-width:1050px){.stats{grid-template-columns:repeat(2,1fr)}.stock-grid,.stock-grid.large{grid-template-columns:repeat(2,1fr)}}
-    @media(max-width:700px){header{height:72px;padding:0 16px}.brand span{display:none}.brand h1{font-size:17px}.header-actions button span{display:none}nav{padding:10px 14px 0}nav button{padding:10px 12px;font-size:12px}main{padding:18px 14px 36px}.hero{padding:27px 23px;min-height:165px}.hero h2{font-size:27px}.hero-orb{width:64px;height:64px}.hero-orb ha-icon{--mdc-icon-size:34px}.stats{grid-template-columns:1fr 1fr;gap:9px}.stat{padding:14px;gap:9px}.stat-icon{width:38px;height:38px;flex-basis:38px}.stat strong{font-size:18px}.ticket{grid-template-columns:1fr}.ticket-side{display:none}.ticket-body{padding:18px}.ticket-head .time{font-size:20px}.dose{grid-template-columns:auto auto 1fr}.dose-amount{grid-column:3}.ticket-actions>.primary{width:100%}.custom-time{max-width:185px}.stock-grid,.stock-grid.large{grid-template-columns:1fr}.page-title{align-items:flex-start;flex-direction:column}.regimen-card{grid-template-columns:44px 1fr}.vertical-actions{grid-column:2}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.week-grid{grid-template-columns:1fr}.inline-fields{grid-template-columns:1fr}.modal-backdrop{padding:0}.modal{max-height:100vh;height:100%;border-radius:0}.modal-head{padding:18px}.modal form{padding:18px}.package-row{grid-template-columns:30px 1fr}.package-actions{grid-column:2}footer{flex-direction:column;gap:5px}}
+    @media(max-width:1050px){.stats{grid-template-columns:repeat(2,1fr)}.stock-grid,.stock-grid.large{grid-template-columns:repeat(2,1fr)}.history-export{grid-template-columns:1fr 1fr}.history-export>div:first-child,.export-actions{grid-column:1/-1}}
+    @media(max-width:700px){header{height:72px;padding:0 16px}.brand span{display:none}.brand h1{font-size:17px}.header-actions button span{display:none}nav{padding:10px 14px 0}nav button{padding:10px 12px;font-size:12px}main{padding:18px 14px 36px}.hero{padding:27px 23px;min-height:165px}.hero h2{font-size:27px}.hero-orb{width:64px;height:64px}.hero-orb ha-icon{--mdc-icon-size:34px}.stats{grid-template-columns:1fr 1fr;gap:9px}.stat{padding:14px;gap:9px}.stat-icon{width:38px;height:38px;flex-basis:38px}.stat strong{font-size:18px}.ticket{grid-template-columns:1fr}.ticket-side{display:none}.ticket-body{padding:18px}.ticket-head .time{font-size:20px}.dose{grid-template-columns:auto auto 1fr}.dose-amount{grid-column:3}.ticket-actions>.primary{width:100%}.custom-time{max-width:185px}.stock-grid,.stock-grid.large{grid-template-columns:1fr}.page-title{align-items:flex-start;flex-direction:column}.history-export{grid-template-columns:1fr}.history-export>div:first-child,.export-actions{grid-column:auto}.export-actions button{flex:1}.regimen-card{grid-template-columns:44px 1fr}.vertical-actions{grid-column:2}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.week-grid{grid-template-columns:1fr}.inline-fields{grid-template-columns:1fr}.modal-backdrop{padding:0}.modal{max-height:100vh;height:100%;border-radius:0}.modal-head{padding:18px}.modal form{padding:18px}.package-row{grid-template-columns:30px 1fr}.package-actions{grid-column:2}footer{flex-direction:column;gap:5px}}
   `; }
 }
 

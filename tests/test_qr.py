@@ -2,16 +2,30 @@
 
 import importlib.util
 from pathlib import Path
+import sys
+import types
 import unittest
 
 
-QR_PATH = (
-    Path(__file__).parents[1] / "custom_components" / "medication_reminder" / "qr.py"
-)
-spec = importlib.util.spec_from_file_location("medication_reminder_qr_test", QR_PATH)
-qr = importlib.util.module_from_spec(spec)
-assert spec and spec.loader
-spec.loader.exec_module(qr)
+ROOT = Path(__file__).parents[1] / "custom_components" / "medication_reminder"
+package = types.ModuleType("qr_test_package")
+package.__path__ = [str(ROOT)]
+sys.modules.setdefault("qr_test_package", package)
+
+
+def _load(name: str):
+    spec = importlib.util.spec_from_file_location(
+        f"qr_test_package.{name}", ROOT / f"{name}.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_load("scan_codes")
+qr = _load("qr")
 
 
 class QrTests(unittest.TestCase):
@@ -25,9 +39,9 @@ class QrTests(unittest.TestCase):
         self.assertGreater(len(result), 500)
         self.assertEqual(1, qr.segno.make_qr(value, error="q").version)
 
-    def test_empty_and_oversized_values_are_rejected(self) -> None:
-        for value in ("", "x" * 2049):
-            with self.subTest(length=len(value)), self.assertRaises(ValueError):
+    def test_non_medication_codes_are_rejected(self) -> None:
+        for value in ("", "x" * 2049, "https://example.com", "medO0I1L"):
+            with self.subTest(value=value[:30]), self.assertRaises(ValueError):
                 qr.qr_data_uri(value)
 
 

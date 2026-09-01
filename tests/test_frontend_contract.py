@@ -52,12 +52,14 @@ class FrontendContractTests(unittest.TestCase):
             "record_unplanned_intake",
             "postpone_interval",
             "generate_qr",
+            "export_history",
         ):
             self.assertIn(f'this.call("{command}"', panel)
             self.assertIn(f'{command}"', backend)
         self.assertNotIn("scanUrl(type, id)", panel)
         self.assertIn('this.call("generate_qr", { value: scanCode })', panel)
         self.assertIn("target?.scan_code", panel)
+        self.assertIn("vol.Match(SCAN_CODE_PATTERN.pattern)", backend)
         self.assertIn('item.unplanned ? this.t("unplanned.history_name")', panel)
 
     def test_stock_badges_do_not_stretch_to_icon_height(self) -> None:
@@ -100,9 +102,20 @@ class FrontendContractTests(unittest.TestCase):
         panel = PANEL.read_text(encoding="utf-8")
         self.assertNotIn('this.field("stock"', panel)
         self.assertNotIn('data-action="adjust-stock"', panel)
-        self.assertIn('stepTwo: true', panel)
-        self.assertIn('medicationId: saved.id', panel)
-        self.assertIn('this.modal.stepTwo', panel)
+        self.assertIn("stepTwo: true", panel)
+        self.assertIn("medicationId: saved.id", panel)
+        self.assertIn("this.modal.stepTwo", panel)
+
+    def test_history_export_supports_date_ranged_json_and_csv_downloads(self) -> None:
+        panel = PANEL.read_text(encoding="utf-8")
+        backend = WEBSOCKET.read_text(encoding="utf-8")
+        self.assertIn('this.call("export_history"', panel)
+        self.assertIn('data-format="json"', panel)
+        self.assertIn('data-format="csv"', panel)
+        self.assertIn("new Blob([result.content]", panel)
+        self.assertIn('vol.Required("start_date")', backend)
+        self.assertIn('vol.Required("end_date")', backend)
+        self.assertIn('vol.In(("json", "csv"))', backend)
 
 
 if __name__ == "__main__":

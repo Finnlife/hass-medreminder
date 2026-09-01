@@ -23,6 +23,7 @@ from .const import (
     MAX_HISTORY,
     PACKAGE_NICKNAMES,
 )
+from .history_export import build_history_export
 from .migrations import ensure_current_data
 from .localization import translate
 from .models import (
@@ -120,6 +121,19 @@ class MedicationManager:
             state.entity_id for state in self.hass.states.async_all("script")
         )
         return result
+
+    async def async_export_history(
+        self, start_date: str, end_date: str, export_format: str
+    ) -> dict[str, Any]:
+        """Export retained completed intake history in an inclusive date range."""
+        async with self._lock:
+            return build_history_export(
+                self.data,
+                start_date,
+                end_date,
+                export_format,
+                exported_at=dt_util.now(),
+            )
 
     async def async_save_medication(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Create or update a medication."""

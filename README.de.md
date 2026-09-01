@@ -9,7 +9,7 @@ interaktive Erinnerungen und ein nachvollziehbares Soll-/Ist-Protokoll. Nach der
 Einrichtung erscheint **Medications** als eigener Sidebar-Eintrag; der Inhalt wird
 bei deutscher Home-Assistant-Sprache vollständig deutsch dargestellt.
 
-## Funktionen
+## Implementierte Funktionen (v0.4.1)
 
 - Medikamente mit Hersteller, Barcode/PZN, Wirkstärke, Darreichungsform,
   Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen öffnet sich direkt
@@ -24,15 +24,36 @@ bei deutscher Home-Assistant-Sprache vollständig deutsch dargestellt.
 - Mobile Aktionen: alles genommen, 30 Minuten schlummern oder Details öffnen
 - Teil-Einnahmen, 30/60/120 Minuten und freie Uhrzeit zum Schlummern sowie Auslassen
 - Persistente Tickets, Soll-/Ist-Verlauf und Bestandsabbuchung erst bei Einnahme
+- Zeitraum-Export des Verlaufs im Tab **Verlauf** als verschachteltes JSON oder CSV
+  mit einer Zeile je Medikamentendosis inklusive Packungs-Snapshots
 - Physische Packungen mit MHD, LOT/Charge, aufgedrucktem Code und automatisch
   wählbarem, eindeutigem Spitznamen
 - Automatisch aus Packungen berechneter Bestand, FEFO-Empfehlung nach nächstem MHD
   und Aufteilung einer Dosis auf mehrere Packungen
 - Lokal erzeugte, kontrastreiche QR-Codes für Medikamente, Packungen und offene
-  Einnahmen; sie enthalten ausschließlich eine stabile achtstellige Kennung wie
-  `med7K2QF`, niemals eine URL oder Medikamentendaten
+  Einnahmen; der Generator akzeptiert ausschließlich stabile achtstellige Kennungen
+  wie `med7K2QF`, niemals eine URL oder Medikamentendaten
 - Sensoren, Binärsensoren, Events und Aktionen für Dashboards und Automationen
 - Englisch als Entwicklungssprache und Standard, Deutsch als vollständige Übersetzung
+
+## Aktuelle Einschränkungen / noch nicht umgesetzt
+
+- Im Panel gibt es noch keinen Kamera-Scanner und keine Auflösung gescannter Codes.
+  QR-Codes können gedruckt und als Text gescannt werden, öffnen aber noch keine
+  Packung und protokollieren keine Einnahme automatisch.
+- Barcode- und DataMatrix-Werte werden nur als Metadaten gespeichert. Erzeugt werden
+  derzeit QR-Codes, keine druckbaren 1D-Barcodes oder DataMatrix-Symbole.
+- Eine mobile Notification kann die komplette Einnahme bestätigen oder 30 Minuten
+  schlummern. Einzelne Medikamente sowie 60/120 Minuten oder eine freie Uhrzeit sind
+  nach dem Öffnen der App auswählbar, nicht direkt in der Notification.
+- MHDs werden gespeichert und für FEFO verwendet. Eigene MHD-/Rückrufwarnungen,
+  Bestandsprognosen und Nachbestellprozesse fehlen noch.
+- Entitätsnamen und Entity-IDs werden in den nativen Home-Assistant-Einstellungen
+  bearbeitet; das Medication-Reminder-Panel besitzt keinen eigenen Entity-Editor.
+- Der Export umfasst aktuell nur den gespeicherten abgeschlossenen/ausgelassenen
+  Einnahmeverlauf. Vollbackup/-import und Export offener oder zukünftiger Tickets fehlen.
+- Getrennte Patientenprofile, Cloud-Synchronisierung, Medizingeräte-Anbindungen und
+  Wechselwirkungsprüfungen sind nicht vorhanden.
 
 ## Installation
 
@@ -53,7 +74,7 @@ Aktionsbuttons benötigen einen kompatiblen Benachrichtigungsdienst, beispielswe
 `notify.mobile_app_*` der Companion App. Andere Dienste können die Nachricht ohne
 Buttons anzeigen.
 
-## Schnittstellen und Speicherung
+## Home-Assistant-Schnittstellen
 
 Globale Entitäten bilden nächste, offene, letzte und überfällige Einnahmen ab.
 Jedes Medikament erzeugt zusätzlich einen Bestands-Sensor und einen
@@ -70,6 +91,18 @@ Aktionen: `medication_reminder.record_intake`, `medication_reminder.snooze`,
 Events: `medication_reminder_due`, `medication_reminder_taken`,
 `medication_reminder_skipped`, `medication_reminder_low_stock` und
 `medication_reminder_postponed`.
+
+## Verlauf exportieren
+
+Im Tab **Verlauf** einen inklusiven Zeitraum von **Von** bis **Bis** auswählen und
+JSON oder CSV herunterladen. Wenn vorhanden, zählt der tatsächliche
+Erfassungszeitpunkt, sonst der geplante Zeitpunkt. JSON enthält Vorgänge, Dosen und
+Packungszuordnungen verschachtelt. CSV schreibt je Medikamentendosis eine Zeile und
+legt Packungszuordnungen als JSON in der letzten Spalte ab. Exportiert wird nur der
+gespeicherte abgeschlossene und ausgelassene Verlauf; offene Tickets und Stammdaten
+sind nicht Teil dieses Exports.
+
+## Speicherung und Verhalten
 
 Alle Daten bleiben lokal unter `.storage/medication_reminder.data`. Alte mobile
 Aktionen sind idempotent und buchen Bestand nicht doppelt ab. Bis zu 2.000

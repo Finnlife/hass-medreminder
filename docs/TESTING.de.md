@@ -93,6 +93,9 @@ Darstellung und Rückmeldung einer echten Smartphone-Notification.
 - QR-Codes für Medikament, Packung und Einnahme erzeugen und scannen. Jede Nutzlast
   muss exakt aus `med` plus fünf eindeutigen Buchstaben/Ziffern bestehen und darf
   keine URL enthalten.
+- Einen ein- und mehrtägigen Zeitraum als JSON und CSV exportieren. Inklusive
+  Grenzen, verschachtelte Packungsdaten im JSON, eine CSV-Zeile je Dosis, UTF-8 und
+  den Ausschluss offener Tickets prüfen.
 - Home Assistant mit offenen, schlummernden und erledigten Tickets neu starten;
   Persistenz, Nacherzeugung, Packungs-Snapshots und Verlauf prüfen.
 - Daten mit altem manuellem Bestand aktualisieren und prüfen, dass eine `Legacy`-

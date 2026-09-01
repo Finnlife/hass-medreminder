@@ -45,7 +45,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass=hass,
             webcomponent_name="medication-reminder-panel",
             frontend_url_path=PANEL_URL,
-            module_url=f"{PANEL_STATIC_URL}/medication-reminder-panel.js?v=0.4.0",
+            module_url=f"{PANEL_STATIC_URL}/medication-reminder-panel.js?v=0.4.1",
             sidebar_title="Medications",
             sidebar_icon="mdi:pill-multiple",
             require_admin=False,

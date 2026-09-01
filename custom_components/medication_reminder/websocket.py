@@ -15,6 +15,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 from .manager import MedicationManager
 from .qr import qr_data_uri
+from .scan_codes import SCAN_CODE_PATTERN
 
 
 def async_register_websocket_api(hass: HomeAssistant) -> None:
@@ -32,6 +33,7 @@ def async_register_websocket_api(hass: HomeAssistant) -> None:
         ws_snooze,
         ws_postpone_interval,
         ws_generate_qr,
+        ws_export_history,
         ws_skip,
         ws_delete_all_data,
     ):
@@ -226,7 +228,7 @@ async def ws_postpone_interval(hass, connection, msg) -> None:
 @websocket_api.websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/generate_qr",
-        vol.Required("value"): vol.All(str, vol.Length(min=1, max=2048)),
+        vol.Required("value"): vol.Match(SCAN_CODE_PATTERN.pattern),
     }
 )
 @websocket_api.async_response
@@ -241,6 +243,26 @@ async def ws_generate_qr(hass, connection, msg) -> None:
 
 async def _async_qr_result(value: str) -> dict[str, str]:
     return {"value": value, "data_uri": qr_data_uri(value)}
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/export_history",
+        vol.Required("start_date"): str,
+        vol.Required("end_date"): str,
+        vol.Required("format"): vol.In(("json", "csv")),
+    }
+)
+@websocket_api.async_response
+async def ws_export_history(hass, connection, msg) -> None:
+    """Return a downloadable retained-history export."""
+    await _respond(
+        connection,
+        msg,
+        lambda: _manager(hass).async_export_history(
+            msg["start_date"], msg["end_date"], msg["format"]
+        ),
+    )
 
 
 @websocket_api.websocket_command(
