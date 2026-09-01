@@ -13,6 +13,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
+from .backup import build_backup_download, prepare_backup_import
 from .const import (
     DOMAIN,
     EVENT_DUE,
@@ -134,6 +135,29 @@ class MedicationManager:
                 export_format,
                 exported_at=dt_util.now(),
             )
+
+    async def async_export_backup(self) -> dict[str, Any]:
+        """Export all persistent Medication Reminder data."""
+        async with self._lock:
+            return build_backup_download(self.data, dt_util.now())
+
+    async def async_import_backup(self, payload: dict[str, Any]) -> dict[str, int]:
+        """Atomically replace persistent data with a validated backup."""
+        imported = prepare_backup_import(payload)
+        async with self._lock:
+            previous = self.data
+            self.data = imported
+            try:
+                await self._changed()
+            except Exception:
+                self.data = previous
+                raise
+            return {
+                "medications": len(self.data["medications"]),
+                "packages": len(self.data["packages"]),
+                "regimens": len(self.data["regimens"]),
+                "occurrences": len(self.data["occurrences"]),
+            }
 
     async def async_save_medication(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Create or update a medication."""

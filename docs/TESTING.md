@@ -96,6 +96,9 @@ phone renders and returns notification actions correctly.
 - Export a one-day and multi-day history range as JSON and CSV. Verify inclusive
   boundaries, nested package allocations in JSON, one CSV row per dose, UTF-8 text,
   and that open tickets are excluded.
+- Download a full backup, create a recognizable change, and restore the backup.
+  Verify medication/package stock, schedules, open tickets, history, and scan codes.
+  Reject malformed and newer unsupported backup versions without changing live data.
 - Restart Home Assistant with open, snoozed, and completed tickets; verify storage,
   due generation, package allocation snapshots, and history.
 - Upgrade data containing legacy manual stock and verify it becomes a `Legacy`

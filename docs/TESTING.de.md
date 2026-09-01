@@ -96,6 +96,10 @@ Darstellung und Rückmeldung einer echten Smartphone-Notification.
 - Einen ein- und mehrtägigen Zeitraum als JSON und CSV exportieren. Inklusive
   Grenzen, verschachtelte Packungsdaten im JSON, eine CSV-Zeile je Dosis, UTF-8 und
   den Ausschluss offener Tickets prüfen.
+- Ein Vollbackup herunterladen, eine erkennbare Änderung vornehmen und das Backup
+  wiederherstellen. Medikamente/Packungsbestand, Pläne, offene Tickets, Verlauf und
+  Scan-Codes prüfen. Fehlerhafte und neuere Backupversionen müssen ohne Änderung der
+  Live-Daten abgelehnt werden.
 - Home Assistant mit offenen, schlummernden und erledigten Tickets neu starten;
   Persistenz, Nacherzeugung, Packungs-Snapshots und Verlauf prüfen.
 - Daten mit altem manuellem Bestand aktualisieren und prüfen, dass eine `Legacy`-

@@ -53,6 +53,8 @@ class FrontendContractTests(unittest.TestCase):
             "postpone_interval",
             "generate_qr",
             "export_history",
+            "export_backup",
+            "import_backup",
         ):
             self.assertIn(f'this.call("{command}"', panel)
             self.assertIn(f'{command}"', backend)
@@ -116,6 +118,17 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn('vol.Required("start_date")', backend)
         self.assertIn('vol.Required("end_date")', backend)
         self.assertIn('vol.In(("json", "csv"))', backend)
+
+    def test_full_backup_export_and_confirmed_import_are_wired(self) -> None:
+        panel = PANEL.read_text(encoding="utf-8")
+        backend = WEBSOCKET.read_text(encoding="utf-8")
+        self.assertIn('this.call("export_backup")', panel)
+        self.assertIn('this.call("import_backup", { backup })', panel)
+        self.assertIn('data-form="import-backup"', panel)
+        self.assertIn('accept="application/json,.json"', panel)
+        self.assertIn('confirm(this.t("confirm.import_backup"))', panel)
+        self.assertIn('vol.Required("backup"): dict', backend)
+        self.assertIn("async_import_backup", backend)
 
 
 if __name__ == "__main__":

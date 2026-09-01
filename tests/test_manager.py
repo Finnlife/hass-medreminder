@@ -2,11 +2,12 @@
 
 from datetime import datetime
 import importlib
+import json
 from pathlib import Path
 import sys
 import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 
 def _install_home_assistant_stubs() -> None:
@@ -202,6 +203,45 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(models_module.empty_data(), manager.data)
         self.assertEqual(models_module.empty_data(), manager._store.saved[-1])
 
+    async def test_full_backup_can_restore_replaced_data(self) -> None:
+        manager = manager_module.MedicationManager(FakeHass())
+        medication = await manager.async_save_medication(
+            {"name": "Backup medicine", "unit": "pieces", "low_stock_threshold": 1}
+        )
+        await manager.async_save_package(
+            {"medication_id": medication["id"], "quantity": 5, "nickname": "Apollo"}
+        )
+        download = await manager.async_export_backup()
+        await manager.async_delete_all_data("DELETE")
+        self.assertEqual([], manager.data["medications"])
+
+        counts = await manager.async_import_backup(json.loads(download["content"]))
+        self.assertEqual(1, counts["medications"])
+        self.assertEqual(1, counts["packages"])
+        self.assertEqual("Backup medicine", manager.data["medications"][0]["name"])
+        self.assertEqual(5, manager.data["medications"][0]["stock"])
+
+    async def test_failed_backup_save_restores_previous_live_data(self) -> None:
+        manager = manager_module.MedicationManager(FakeHass())
+        await manager.async_save_medication(
+            {"name": "Live medicine", "unit": "pieces", "low_stock_threshold": 1}
+        )
+        download = await manager.async_export_backup()
+        payload = json.loads(download["content"])
+        payload["data"]["medications"][0]["name"] = "Imported medicine"
+        previous = manager.data
+
+        with (
+            patch.object(
+                manager, "_changed", AsyncMock(side_effect=RuntimeError("save failed"))
+            ),
+            self.assertRaisesRegex(RuntimeError, "save failed"),
+        ):
+            await manager.async_import_backup(payload)
+
+        self.assertIs(previous, manager.data)
+        self.assertEqual("Live medicine", manager.data["medications"][0]["name"])
+
     async def test_multi_medication_booking_is_atomic(self) -> None:
         manager = self.manager_with_occurrence(second_stock=0.5)
         with self.assertRaises(ValueError):
@@ -245,9 +285,7 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("packages", created["stock_mode"])
 
     def test_normalizer_ignores_supplied_stock(self) -> None:
-        medication = models_module.normalize_medication(
-            {"name": "A", "stock": "nan"}
-        )
+        medication = models_module.normalize_medication({"name": "A", "stock": "nan"})
         self.assertEqual(0, medication["stock"])
         self.assertEqual("packages", medication["stock_mode"])
 

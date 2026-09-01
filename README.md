@@ -8,7 +8,7 @@ A local Home Assistant custom integration for medication schedules, stock tracki
 actionable reminders, and an auditable planned-versus-actual intake history. After
 setup, **Medications** appears as a dedicated sidebar panel.
 
-## Implemented features (v0.4.1)
+## Implemented features (v0.5.0)
 
 - Medication records with manufacturer, barcode/product code, strength, dosage
   form, stock unit, warning threshold, and notes; creating one immediately opens
@@ -24,6 +24,8 @@ setup, **Medications** appears as a dedicated sidebar panel.
 - Persistent open tickets and planned-versus-actual history
 - Date-ranged history export from the History tab as nested JSON or CSV with one
   row per medication dose, including package-allocation snapshots
+- Versioned full JSON backup and validated restore for medications, packages,
+  schedules, open tickets, and retained history
 - Stock deduction only after an intake is actually recorded
 - Physical packages with expiry date, LOT/batch, printed-code metadata, and a fun
   unique nickname generated automatically when left empty
@@ -34,25 +36,6 @@ setup, **Medications** appears as a dedicated sidebar panel.
   such as `med7K2QF`, never a URL or medication data
 - Sensors, binary sensors, events, and actions for dashboards and automations
 - English by default, with German UI, entity, setup, action, and notification translations
-
-## Current limitations / not implemented yet
-
-- There is no camera scanner or scan-code resolver in the panel yet. Generated QR
-  codes can be printed and scanned as text, but scanning one does not yet open a
-  package or record an intake automatically.
-- Barcode and DataMatrix values are metadata only. The app currently generates QR
-  codes, not printable 1D barcodes or DataMatrix symbols.
-- A mobile notification can mark the complete intake taken or snooze it for 30
-  minutes. Selecting individual medications and 60/120-minute or custom-time
-  snooze is available after opening the app, not directly inside the notification.
-- Expiry dates are stored and used for FEFO selection, but there are no separate
-  expiry/recall warnings, stock forecasts, or refill-order workflows yet.
-- Entity names and IDs are edited through Home Assistant's native entity settings;
-  the Medication Reminder panel does not provide its own entity editor.
-- Export currently covers retained completed/skipped intake history only. There is
-  no full backup/import workflow or export of open and future tickets yet.
-- There are no separate patient profiles, cloud synchronization, medical-device
-  integrations, or medication-interaction checks.
 
 ## Installation
 
@@ -105,6 +88,17 @@ time. JSON keeps occurrences, doses, and package allocations nested. CSV writes 
 row per medication dose and stores package allocations as JSON in the final column.
 Only the retained completed and skipped history is exported; open tickets and master
 data are not included in this export.
+
+## Full backup and restore
+
+Open **Backup and restore** from the database button in the panel header. A full
+backup downloads a versioned JSON file containing every medication, package,
+schedule, open ticket, retained history record, and internal scheduling timestamp.
+
+Restore accepts only a compatible Medication Reminder backup. The complete file is
+validated and older supported storage data is migrated before anything changes.
+After confirmation, restore atomically replaces the current Medication Reminder
+data. Download the current backup first if you may need to return to it.
 
 ## Storage and behavior
 

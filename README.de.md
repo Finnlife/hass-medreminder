@@ -9,7 +9,7 @@ interaktive Erinnerungen und ein nachvollziehbares Soll-/Ist-Protokoll. Nach der
 Einrichtung erscheint **Medications** als eigener Sidebar-Eintrag; der Inhalt wird
 bei deutscher Home-Assistant-Sprache vollständig deutsch dargestellt.
 
-## Implementierte Funktionen (v0.4.1)
+## Implementierte Funktionen (v0.5.0)
 
 - Medikamente mit Hersteller, Barcode/PZN, Wirkstärke, Darreichungsform,
   Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen öffnet sich direkt
@@ -26,6 +26,8 @@ bei deutscher Home-Assistant-Sprache vollständig deutsch dargestellt.
 - Persistente Tickets, Soll-/Ist-Verlauf und Bestandsabbuchung erst bei Einnahme
 - Zeitraum-Export des Verlaufs im Tab **Verlauf** als verschachteltes JSON oder CSV
   mit einer Zeile je Medikamentendosis inklusive Packungs-Snapshots
+- Versioniertes vollständiges JSON-Backup und validierte Wiederherstellung für
+  Medikamente, Packungen, Pläne, offene Tickets und den gespeicherten Verlauf
 - Physische Packungen mit MHD, LOT/Charge, aufgedrucktem Code und automatisch
   wählbarem, eindeutigem Spitznamen
 - Automatisch aus Packungen berechneter Bestand, FEFO-Empfehlung nach nächstem MHD
@@ -35,25 +37,6 @@ bei deutscher Home-Assistant-Sprache vollständig deutsch dargestellt.
   wie `med7K2QF`, niemals eine URL oder Medikamentendaten
 - Sensoren, Binärsensoren, Events und Aktionen für Dashboards und Automationen
 - Englisch als Entwicklungssprache und Standard, Deutsch als vollständige Übersetzung
-
-## Aktuelle Einschränkungen / noch nicht umgesetzt
-
-- Im Panel gibt es noch keinen Kamera-Scanner und keine Auflösung gescannter Codes.
-  QR-Codes können gedruckt und als Text gescannt werden, öffnen aber noch keine
-  Packung und protokollieren keine Einnahme automatisch.
-- Barcode- und DataMatrix-Werte werden nur als Metadaten gespeichert. Erzeugt werden
-  derzeit QR-Codes, keine druckbaren 1D-Barcodes oder DataMatrix-Symbole.
-- Eine mobile Notification kann die komplette Einnahme bestätigen oder 30 Minuten
-  schlummern. Einzelne Medikamente sowie 60/120 Minuten oder eine freie Uhrzeit sind
-  nach dem Öffnen der App auswählbar, nicht direkt in der Notification.
-- MHDs werden gespeichert und für FEFO verwendet. Eigene MHD-/Rückrufwarnungen,
-  Bestandsprognosen und Nachbestellprozesse fehlen noch.
-- Entitätsnamen und Entity-IDs werden in den nativen Home-Assistant-Einstellungen
-  bearbeitet; das Medication-Reminder-Panel besitzt keinen eigenen Entity-Editor.
-- Der Export umfasst aktuell nur den gespeicherten abgeschlossenen/ausgelassenen
-  Einnahmeverlauf. Vollbackup/-import und Export offener oder zukünftiger Tickets fehlen.
-- Getrennte Patientenprofile, Cloud-Synchronisierung, Medizingeräte-Anbindungen und
-  Wechselwirkungsprüfungen sind nicht vorhanden.
 
 ## Installation
 
@@ -101,6 +84,19 @@ Packungszuordnungen verschachtelt. CSV schreibt je Medikamentendosis eine Zeile 
 legt Packungszuordnungen als JSON in der letzten Spalte ab. Exportiert wird nur der
 gespeicherte abgeschlossene und ausgelassene Verlauf; offene Tickets und Stammdaten
 sind nicht Teil dieses Exports.
+
+## Vollbackup und Wiederherstellung
+
+Über den Datenbank-Button im Panel-Header **Sichern und wiederherstellen** öffnen.
+Das vollständige Backup lädt eine versionierte JSON-Datei mit allen Medikamenten,
+Packungen, Plänen, offenen Tickets, gespeicherten Verlaufseinträgen und internen
+Zeitplanständen herunter.
+
+Die Wiederherstellung akzeptiert nur ein kompatibles Medication-Reminder-Backup.
+Die komplette Datei wird validiert und ein unterstützter älterer Speicherstand vor
+jeder Änderung migriert. Nach der Bestätigung ersetzt der Import den aktuellen
+Medication-Reminder-Datenstand atomar. Lade vorher den aktuellen Stand herunter,
+falls du später zu ihm zurückkehren möchtest.
 
 ## Speicherung und Verhalten
 

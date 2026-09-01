@@ -34,6 +34,8 @@ def async_register_websocket_api(hass: HomeAssistant) -> None:
         ws_postpone_interval,
         ws_generate_qr,
         ws_export_history,
+        ws_export_backup,
+        ws_import_backup,
         ws_skip,
         ws_delete_all_data,
     ):
@@ -262,6 +264,29 @@ async def ws_export_history(hass, connection, msg) -> None:
         lambda: _manager(hass).async_export_history(
             msg["start_date"], msg["end_date"], msg["format"]
         ),
+    )
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/export_backup"})
+@websocket_api.async_response
+async def ws_export_backup(hass, connection, msg) -> None:
+    """Return a downloadable full JSON backup."""
+    await _respond(connection, msg, lambda: _manager(hass).async_export_backup())
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/import_backup",
+        vol.Required("backup"): dict,
+    }
+)
+@websocket_api.async_response
+async def ws_import_backup(hass, connection, msg) -> None:
+    """Validate and atomically restore a full JSON backup."""
+    await _respond(
+        connection,
+        msg,
+        lambda: _manager(hass).async_import_backup(msg["backup"]),
     )
 
 
