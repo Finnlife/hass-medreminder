@@ -4,9 +4,37 @@
 
 [Deutsch](README.de.md)
 
+> [!CAUTION]
+> **Do not rely on this project for real medication.**
+>
+> This is a hobby project. It was written for one purpose: reminding its author to
+> take vitamins. It is **not** a medical device, it is not certified, validated or
+> reviewed by anyone, and it comes with no warranty of any kind.
+>
+> Reminders can silently fail to arrive, and the recorded history can be wrong or
+> incomplete. A Home Assistant restart, an update, a failed notification service, a
+> phone in do-not-disturb mode, an empty battery, a bug in this code or a mistake in
+> your own configuration are all enough to make a dose disappear without a trace.
+>
+> If you take prescription medication, or any medication where a missed, doubled or
+> mistimed dose matters, **never** use this project as your only reminder or as your
+> only intake record. Keep a pill organiser, a paper log, a pharmacy app or whatever
+> your doctor or pharmacist recommends, and treat anything shown here as a
+> convenience on top of that. For questions about your medication, ask your doctor
+> or pharmacist, not this README.
+
 A local Home Assistant custom integration for medication schedules, stock tracking,
 actionable reminders, and an auditable planned-versus-actual intake history. After
 setup, **Medications** appears as a dedicated sidebar panel.
+
+## How this project was built
+
+Large parts of this project were written with AI assistance. Home Assistant's
+integration and frontend interfaces were new to the author, and AI was used to
+learn them and to produce much of the code. Everything is reviewed and tested
+before it lands, but this is worth knowing when you judge how much to trust the
+code — please read it yourself before running it on an instance you care about,
+and see the caution above regarding real medication.
 
 ## Implemented features (v0.6.1)
 

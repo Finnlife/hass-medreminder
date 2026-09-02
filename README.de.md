@@ -4,10 +4,42 @@
 
 [English](README.md)
 
+> [!CAUTION]
+> **Verlasse dich bei echten Medikamenten nicht auf dieses Projekt.**
+>
+> Das hier ist ein Hobbyprojekt. Es ist zu einem Zweck entstanden: den Autor daran
+> zu erinnern, seine Vitamine zu nehmen. Es ist **kein** Medizinprodukt, es ist
+> nicht zertifiziert, nicht validiert, von niemandem geprüft und kommt ohne
+> jegliche Gewährleistung.
+>
+> Erinnerungen können ausbleiben, ohne dass es jemand merkt, und der aufgezeichnete
+> Verlauf kann falsch oder unvollständig sein. Ein Neustart von Home Assistant, ein
+> Update, ein ausgefallener Benachrichtigungsdienst, ein Handy im Nicht-stören-Modus,
+> ein leerer Akku, ein Fehler in diesem Code oder ein Fehler in deiner eigenen
+> Konfiguration reichen jeweils aus, damit eine Dosis spurlos verschwindet.
+>
+> Wenn du verschreibungspflichtige Medikamente nimmst oder überhaupt Medikamente,
+> bei denen eine vergessene, doppelte oder falsch getimte Dosis eine Rolle spielt,
+> nutze dieses Projekt **niemals** als einzige Erinnerung und niemals als einzigen
+> Einnahmenachweis. Behalte deine Tablettenbox, dein Papierprotokoll, deine
+> Apotheken-App oder was auch immer Arzt oder Apotheke dir empfehlen, und betrachte
+> alles hier nur als Komfort obendrauf. Bei Fragen zu deiner Medikation wende dich
+> an Arzt oder Apotheke, nicht an diese README.
+
 Eine lokale Home-Assistant-Custom-Integration für Medikamentenpläne, Bestände,
 interaktive Erinnerungen und ein nachvollziehbares Soll-/Ist-Protokoll. Nach der
 Einrichtung erscheint **Medications** als eigener Sidebar-Eintrag; der Inhalt wird
 bei deutscher Home-Assistant-Sprache vollständig deutsch dargestellt.
+
+## Wie dieses Projekt entstanden ist
+
+Große Teile dieses Projekts sind mit KI-Unterstützung entstanden. Die Integrations-
+und Frontend-Schnittstellen von Home Assistant waren für den Autor neu; KI wurde
+genutzt, um sie zu lernen und einen Großteil des Codes zu schreiben. Alles wird vor
+dem Einchecken geprüft und getestet, aber das gehört zur Einschätzung dazu, wie
+sehr man diesem Code vertrauen sollte — lies ihn selbst, bevor du ihn auf einer
+Instanz laufen lässt, die dir wichtig ist, und beachte den Warnhinweis oben zu
+echten Medikamenten.
 
 ## Implementierte Funktionen (v0.6.1)
 
