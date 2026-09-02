@@ -7,7 +7,6 @@ from datetime import timedelta
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
@@ -168,6 +167,7 @@ async def ws_record_intake(hass, connection, msg) -> None:
         vol.Required("type"): f"{DOMAIN}/record_unplanned_intake",
         vol.Required("items"): list,
         vol.Optional("taken_at"): str,
+        vol.Optional("note", default=""): str,
     }
 )
 @websocket_api.async_response
@@ -180,7 +180,7 @@ async def ws_record_unplanned_intake(hass, connection, msg) -> None:
         connection,
         msg,
         lambda: _manager(hass).async_record_unplanned_intake(
-            msg["items"], connection.user.id, taken_at
+            msg["items"], connection.user.id, taken_at, msg.get("note", "")
         ),
     )
 

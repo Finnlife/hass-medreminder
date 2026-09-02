@@ -8,7 +8,7 @@ A local Home Assistant custom integration for medication schedules, stock tracki
 actionable reminders, and an auditable planned-versus-actual intake history. After
 setup, **Medications** appears as a dedicated sidebar panel.
 
-## Implemented features (v0.5.0)
+## Implemented features (v0.6.0)
 
 - Medication records with manufacturer, barcode/product code, strength, dosage
   form, stock unit, warning threshold, and notes; creating one immediately opens
@@ -17,24 +17,27 @@ setup, **Medications** appears as a dedicated sidebar panel.
 - Interval schedules for every x days from a chosen start date
 - Move a due interval intake to tomorrow and shift the complete future cycle
 - Multiple medications and individual doses in one intake
-- Unplanned intakes with the same stock and audit guarantees as scheduled intakes
-- Repeating reminders through selected `notify.*` services and scripts
-- Mobile actions to mark everything taken, snooze for 30 minutes, or open details
+- Unplanned intakes with an optional note and the same stock and audit guarantees
+- Repeating reminders through selected `notify.*` services and scripts, with a
+  reminder window that stops notification floods after a long absence
+- Optional automatic `missed` status for abandoned intakes, so adherence stays honest
+- Mobile actions to mark everything taken, snooze for 30 minutes, or skip
 - Partial intake, 30/60/120-minute and custom-time snooze, and skip controls in the app
-- Persistent open tickets and planned-versus-actual history
+- Persistent open tickets and planned-versus-actual history with status filter and search
+- Adherence statistics over the last 30 days
 - Date-ranged history export from the History tab as nested JSON or CSV with one
   row per medication dose, including package-allocation snapshots
-- Versioned full JSON backup and validated restore for medications, packages,
-  schedules, open tickets, and retained history
+- Versioned full JSON backup and validated restore
 - Stock deduction only after an intake is actually recorded
 - Physical packages with expiry date, LOT/batch, printed-code metadata, and a fun
   unique nickname generated automatically when left empty
-- Automatic stock calculated from packages, with FEFO recommendations and dose
-  splitting across packages when one package is not enough
+- Automatic stock calculated from packages, with FEFO recommendations, dose
+  splitting across packages, days-of-supply estimates and expiry warnings
 - Locally generated, high-contrast QR codes for medications, packages, and open
   intake tickets; the generator accepts only stable eight-character identifiers
   such as `med7K2QF`, never a URL or medication data
-- Sensors, binary sensors, events, and actions for dashboards and automations
+- Sensors, binary sensors, a to-do list, a calendar, events, and actions for
+  dashboards and automations
 - English by default, with German UI, entity, setup, action, and notification translations
 
 ## Installation
@@ -57,19 +60,44 @@ providers may display the message without its buttons.
 
 ## Home Assistant interfaces
 
-Global entities represent the next, pending, last, and overdue intakes. Each
-medication also creates a stock sensor and a low-stock binary sensor. Every physical
-package gets its own stock sensor with LOT, expiry date, initial quantity, and printed
-code attributes. Home Assistant assigns final entity IDs, which can be changed in the
-device view.
+All entities belong to a **Medication schedule** service device; every medication
+also gets its own device so dashboards can group by medication.
+
+Global entities:
+
+| Entity | Type | Notes |
+| --- | --- | --- |
+| Next intake | sensor (timestamp) | attributes: plan, medications, doses |
+| Open intakes | sensor (count) | attributes: occurrence IDs and summaries |
+| Due now | sensor (count) | only unresolved, unsnoozed intakes |
+| Last intake | sensor (timestamp) | attributes: plan and summary |
+| Adherence | sensor (%) | 30-day window, diagnostic category |
+| Intake due | binary sensor (problem) | attributes: count and summaries |
+| Medication intakes | to-do list | ticking an item records the intake, deleting skips it |
+| Medication schedule | calendar | planned intakes of every active plan |
+
+Per medication:
+
+| Entity | Type | Notes |
+| --- | --- | --- |
+| Stock | sensor (measurement) | unit from the medication, package metadata as attributes |
+| Days of supply | sensor (days) | stock divided by the planned daily amount |
+| Low stock | binary sensor (problem) | at or below the warning threshold |
+| Package expiring | binary sensor (problem) | a usable package expires within 30 days |
+
+Every physical package additionally gets its own stock sensor with LOT, expiry
+date, initial quantity and printed code as attributes. Home Assistant assigns the
+final entity IDs, which can be changed in the device view. Deleting a medication or
+package in the panel also removes its device and entities from the registries.
 
 Actions:
 
 - `medication_reminder.record_intake`
-- `medication_reminder.snooze`
-- `medication_reminder.add_package`
 - `medication_reminder.record_unplanned_intake`
+- `medication_reminder.skip_intake`
+- `medication_reminder.snooze`
 - `medication_reminder.postpone_interval`
+- `medication_reminder.add_package`
 - `medication_reminder.delete_all_data` (requires `confirmation: DELETE`)
 
 Events:
@@ -77,6 +105,7 @@ Events:
 - `medication_reminder_due`
 - `medication_reminder_taken`
 - `medication_reminder_skipped`
+- `medication_reminder_missed`
 - `medication_reminder_low_stock`
 - `medication_reminder_postponed`
 
@@ -103,20 +132,37 @@ data. Download the current backup first if you may need to return to it.
 ## Storage and behavior
 
 All data remains in Home Assistant under `.storage/medication_reminder.data`.
-After a restart, missed scheduled times are generated for up to 30 days. Intake
-recording is idempotent: using an old completed notification action again does not
-deduct stock twice. The latest 2,000 completed occurrences are retained, while
-open occurrences are never removed automatically.
+After a restart, missed scheduled times are reconstructed for up to 30 days.
+Intake recording is idempotent: using an old completed notification action again
+does not deduct stock twice. The latest 2,000 closed occurrences are retained,
+while open occurrences are never removed automatically.
 
-The trash button in the panel header can permanently delete all Medication Reminder
-records after a second confirmation with `DELETE`. This keeps the integration itself
-installed. The same server-side confirmation is required by the Home Assistant action.
+Each plan controls its own reminder behaviour:
 
-The storage schema is versioned. The current migration converts any legacy manual
-stock into a physical `Legacy` package and keeps intake history unchanged. Stock is
-always recalculated from package remainders. This project is still
-pre-1.0: back up `.storage/medication_reminder.data` before upgrading because the
-storage compatibility contract is not considered final until version 1.0.
+- **Repeat every** – how often an open reminder is repeated.
+- **Stop reminding after** – no further notifications once this many minutes have
+  passed since the due time. The ticket stays open in the panel. `0` keeps
+  reminding until the intake is resolved. This prevents a notification flood after
+  a holiday or a long shutdown.
+- **Mark as missed after** – closes an abandoned intake as `missed` without
+  touching stock, so adherence statistics stay honest. `0` keeps it open forever.
+
+Snoozing always wins over the repeat interval: when a snooze expires, the next
+reminder is sent immediately instead of waiting for the repeat window.
+
+Editing a plan removes its untouched future tickets so schedule changes take
+effect right away; due and partially completed tickets are kept.
+
+The trash button in the panel header can permanently delete all Medication
+Reminder records after a second confirmation with `DELETE`. This keeps the
+integration itself installed. The same server-side confirmation is required by the
+Home Assistant action.
+
+The storage schema is versioned. Legacy manual stock is converted into a physical
+`Legacy` package, and stock is always recalculated from package remainders. This
+project is still pre-1.0: back up `.storage/medication_reminder.data` before
+upgrading because the storage compatibility contract is not considered final until
+version 1.0.
 
 ## Development and testing
 

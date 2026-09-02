@@ -9,34 +9,40 @@ interaktive Erinnerungen und ein nachvollziehbares Soll-/Ist-Protokoll. Nach der
 Einrichtung erscheint **Medications** als eigener Sidebar-Eintrag; der Inhalt wird
 bei deutscher Home-Assistant-Sprache vollständig deutsch dargestellt.
 
-## Implementierte Funktionen (v0.5.0)
+## Implementierte Funktionen (v0.6.0)
 
-- Medikamente mit Hersteller, Barcode/PZN, Wirkstärke, Darreichungsform,
-  Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen öffnet sich direkt
-  Schritt 2 für die erste physische Packung
-- Wochenpläne mit eigener Uhrzeit je Wochentag und mehreren Uhrzeiten pro Tag
-- Intervallpläne alle x Tage ab einem frei wählbaren Startdatum
-- Eine fällige Intervall-Einnahme auf morgen verschieben und damit den gesamten
-  zukünftigen Zyklus versetzen
-- Mehrere Medikamente und individuelle Dosen pro Einnahme
-- Ungeplante Einnahmen mit denselben Bestands- und Protokollgarantien
-- Wiederholte Erinnerungen über ausgewählte `notify.*`-Dienste und Scripts
-- Mobile Aktionen: alles genommen, 30 Minuten schlummern oder Details öffnen
-- Teil-Einnahmen, 30/60/120 Minuten und freie Uhrzeit zum Schlummern sowie Auslassen
-- Persistente Tickets, Soll-/Ist-Verlauf und Bestandsabbuchung erst bei Einnahme
-- Zeitraum-Export des Verlaufs im Tab **Verlauf** als verschachteltes JSON oder CSV
-  mit einer Zeile je Medikamentendosis inklusive Packungs-Snapshots
-- Versioniertes vollständiges JSON-Backup und validierte Wiederherstellung für
-  Medikamente, Packungen, Pläne, offene Tickets und den gespeicherten Verlauf
+- Medikamentenstammdaten mit Hersteller, Barcode/Produktcode, Stärke,
+  Darreichungsform, Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen
+  öffnet direkt ein zweiter Schritt für die erste physische Packung
+- Wochenpläne mit unterschiedlichen Zeiten je Wochentag und mehreren Zeiten pro Tag
+- Intervallpläne alle x Tage ab einem gewählten Startdatum
+- Fällige Intervall-Einnahme auf morgen schieben und den ganzen Folgezyklus mitziehen
+- Mehrere Medikamente und individuelle Dosen in einer Einnahme
+- Ungeplante Einnahmen mit optionaler Notiz und denselben Bestands- und
+  Nachweisgarantien
+- Wiederholte Erinnerungen über ausgewählte `notify.*`-Dienste und Skripte, mit
+  Erinnerungsfenster gegen Benachrichtigungsfluten nach längerer Abwesenheit
+- Optionaler automatischer Status `versäumt` für liegengebliebene Einnahmen
+- Mobile Aktionen für „alles genommen“, 30 Minuten vertagen oder auslassen
+- Teil-Einnahme, Vertagung um 30/60/120 Minuten oder auf eine freie Zeit sowie
+  Auslassen direkt in der App
+- Dauerhafte offene Tickets und Soll-Ist-Verlauf mit Statusfilter und Suche
+- Therapietreue-Statistik über die letzten 30 Tage
+- Verlaufsexport für einen Zeitraum als verschachteltes JSON oder als CSV mit einer
+  Zeile je Medikamentendosis inklusive Packungszuordnungen
+- Versioniertes JSON-Vollbackup und validierte Wiederherstellung
+- Bestandsabbuchung erst, wenn eine Einnahme wirklich erfasst wurde
 - Physische Packungen mit MHD, LOT/Charge, aufgedrucktem Code und automatisch
-  wählbarem, eindeutigem Spitznamen
-- Automatisch aus Packungen berechneter Bestand, FEFO-Empfehlung nach nächstem MHD
-  und Aufteilung einer Dosis auf mehrere Packungen
-- Lokal erzeugte, kontrastreiche QR-Codes für Medikamente, Packungen und offene
-  Einnahmen; der Generator akzeptiert ausschließlich stabile achtstellige Kennungen
-  wie `med7K2QF`, niemals eine URL oder Medikamentendaten
-- Sensoren, Binärsensoren, Events und Aktionen für Dashboards und Automationen
-- Englisch als Entwicklungssprache und Standard, Deutsch als vollständige Übersetzung
+  vergebenem, eindeutigem Spitznamen
+- Automatischer Bestand aus den Packungen, mit FEFO-Empfehlung, Dosisaufteilung
+  über mehrere Packungen, Reichweitenschätzung und Ablaufwarnungen
+- Lokal erzeugte, kontraststarke QR-Codes für Medikamente, Packungen und offene
+  Einnahme-Tickets; der Generator akzeptiert nur stabile Kurzkennungen wie
+  `med7K2QF`, niemals eine URL oder Medikamentendaten
+- Sensoren, Binärsensoren, To-do-Liste, Kalender, Events und Aktionen für
+  Dashboards und Automationen
+- Englisch als Standard, mit deutscher Oberfläche, Entitäten, Einrichtung,
+  Aktionen und Benachrichtigungen
 
 ## Installation
 
@@ -59,21 +65,55 @@ Buttons anzeigen.
 
 ## Home-Assistant-Schnittstellen
 
-Globale Entitäten bilden nächste, offene, letzte und überfällige Einnahmen ab.
-Jedes Medikament erzeugt zusätzlich einen Bestands-Sensor und einen
-Low-Stock-Binärsensor. Jede physische Packung erhält einen eigenen Bestands-Sensor
-mit LOT, MHD, Anfangsmenge und aufgedrucktem Code als Attribute. Die endgültigen
-Entity-IDs vergibt Home Assistant.
+Alle Entitäten hängen am Service-Gerät **Medication schedule**; zusätzlich bekommt
+jedes Medikament ein eigenes Gerät, damit Dashboards nach Medikament gruppieren
+können.
 
-Aktionen: `medication_reminder.record_intake`, `medication_reminder.snooze`,
-`medication_reminder.add_package`,
-`medication_reminder.record_unplanned_intake` und
-`medication_reminder.postpone_interval` sowie
-`medication_reminder.delete_all_data` (benötigt `confirmation: DELETE`).
+Globale Entitäten:
 
-Events: `medication_reminder_due`, `medication_reminder_taken`,
-`medication_reminder_skipped`, `medication_reminder_low_stock` und
-`medication_reminder_postponed`.
+| Entität | Typ | Hinweise |
+| --- | --- | --- |
+| Nächste Einnahme | Sensor (Zeitstempel) | Attribute: Plan, Medikamente, Dosen |
+| Offene Einnahmen | Sensor (Anzahl) | Attribute: IDs und Kurzfassungen |
+| Jetzt fällig | Sensor (Anzahl) | nur unerledigte, nicht vertagte Einnahmen |
+| Letzte Einnahme | Sensor (Zeitstempel) | Attribute: Plan und Kurzfassung |
+| Therapietreue | Sensor (%) | 30-Tage-Fenster, Diagnose-Kategorie |
+| Einnahme fällig | Binärsensor (Problem) | Attribute: Anzahl und Kurzfassungen |
+| Medikamenteneinnahmen | To-do-Liste | Abhaken erfasst die Einnahme, Löschen lässt sie aus |
+| Medikamentenplan | Kalender | geplante Einnahmen aller aktiven Pläne |
+
+Je Medikament:
+
+| Entität | Typ | Hinweise |
+| --- | --- | --- |
+| Bestand | Sensor (Messwert) | Einheit aus dem Medikament, Packungsdaten als Attribute |
+| Reichweite | Sensor (Tage) | Bestand geteilt durch die geplante Tagesmenge |
+| Bestand niedrig | Binärsensor (Problem) | auf oder unter der Warnschwelle |
+| Packung läuft ab | Binärsensor (Problem) | eine nutzbare Packung läuft binnen 30 Tagen ab |
+
+Jede physische Packung erhält zusätzlich einen eigenen Bestands-Sensor mit LOT,
+MHD, Anfangsmenge und aufgedrucktem Code als Attribute. Die endgültigen Entity-IDs
+vergibt Home Assistant. Wird ein Medikament oder eine Packung im Panel gelöscht,
+verschwinden auch Gerät und Entitäten aus der Registry.
+
+Aktionen:
+
+- `medication_reminder.record_intake`
+- `medication_reminder.record_unplanned_intake`
+- `medication_reminder.skip_intake`
+- `medication_reminder.snooze`
+- `medication_reminder.postpone_interval`
+- `medication_reminder.add_package`
+- `medication_reminder.delete_all_data` (benötigt `confirmation: DELETE`)
+
+Events:
+
+- `medication_reminder_due`
+- `medication_reminder_taken`
+- `medication_reminder_skipped`
+- `medication_reminder_missed`
+- `medication_reminder_low_stock`
+- `medication_reminder_postponed`
 
 ## Verlauf exportieren
 
@@ -100,20 +140,38 @@ falls du später zu ihm zurückkehren möchtest.
 
 ## Speicherung und Verhalten
 
-Alle Daten bleiben lokal unter `.storage/medication_reminder.data`. Alte mobile
+Alle Daten bleiben lokal unter `.storage/medication_reminder.data`. Nach einem
+Neustart werden verpasste Termine für bis zu 30 Tage nachgebildet. Alte mobile
 Aktionen sind idempotent und buchen Bestand nicht doppelt ab. Bis zu 2.000
 abgeschlossene Vorgänge werden gespeichert; offene Vorgänge bleiben erhalten.
+
+Jeder Plan steuert sein Erinnerungsverhalten selbst:
+
+- **Erinnerung wiederholen alle** – Abstand zwischen zwei Erinnerungen.
+- **Erinnern beenden nach** – nach so vielen Minuten ab Fälligkeit werden keine
+  Benachrichtigungen mehr verschickt. Das Ticket bleibt im Panel offen. `0`
+  erinnert, bis die Einnahme erledigt ist. Das verhindert eine Benachrichtigungs-
+  flut nach Urlaub oder längerem Ausfall.
+- **Als versäumt markieren nach** – schließt eine liegengebliebene Einnahme als
+  `versäumt`, ohne den Bestand anzufassen, damit die Therapietreue-Statistik
+  ehrlich bleibt. `0` lässt sie dauerhaft offen.
+
+Eine Vertagung schlägt immer das Wiederholungsintervall: Läuft die Vertagung ab,
+wird sofort erinnert und nicht erst nach dem nächsten Wiederholungsfenster.
+
+Beim Bearbeiten eines Plans werden unberührte künftige Tickets entfernt, damit
+Planänderungen sofort greifen; fällige und teilweise erfasste Tickets bleiben.
+
 Über den Papierkorb im Panel-Header lassen sich nach einer zweiten Bestätigung mit
 `DELETE` sämtliche Medication-Reminder-Daten dauerhaft löschen. Die Integration
 selbst bleibt installiert. Dieselbe serverseitige Bestätigung gilt für die
 Home-Assistant-Aktion.
-Das Speicherschema ist versioniert; die aktuelle Migration überführt vorhandenen
-manuellen Bestand verlustfrei in eine physische `Legacy`-Packung. Der Bestand wird
-danach immer aus den Restmengen der Packungen berechnet, ohne die Einnahmehistorie
-umzuschreiben. Das Projekt
-ist weiterhin vor Version 1.0. Vor 0.x-Updates sollte deshalb eine Sicherung von
-`.storage/medication_reminder.data` erstellt werden; der dauerhafte
-Kompatibilitätsvertrag gilt erst ab Version 1.0.
+
+Das Speicherschema ist versioniert; alter manueller Bestand wird verlustfrei in
+eine physische `Legacy`-Packung überführt. Der Bestand wird danach immer aus den
+Restmengen der Packungen berechnet. Das Projekt ist weiterhin vor Version 1.0. Vor
+0.x-Updates sollte deshalb eine Sicherung von `.storage/medication_reminder.data`
+erstellt werden; der dauerhafte Kompatibilitätsvertrag gilt erst ab Version 1.0.
 
 ## Entwicklung und vollständiger Test
 

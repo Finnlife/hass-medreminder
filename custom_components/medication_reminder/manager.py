@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
-from datetime import date, datetime, timedelta
 import logging
 import math
+from collections.abc import Callable
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from homeassistant.core import Event, HomeAssistant, callback
@@ -15,18 +15,24 @@ from homeassistant.util import dt as dt_util
 
 from .backup import build_backup_download, prepare_backup_import
 from .const import (
+    ADHERENCE_WINDOW_DAYS,
+    CATCHUP_DAYS,
+    CLOSED_STATUSES,
     DOMAIN,
     EVENT_DUE,
     EVENT_LOW_STOCK,
+    EVENT_MISSED,
     EVENT_POSTPONED,
     EVENT_SKIPPED,
     EVENT_TAKEN,
     MAX_HISTORY,
+    OPEN_STATUSES,
     PACKAGE_NICKNAMES,
+    TICK_SECONDS,
 )
 from .history_export import build_history_export
-from .migrations import ensure_current_data
 from .localization import translate
+from .migrations import ensure_current_data
 from .models import (
     empty_data,
     new_id,
@@ -36,8 +42,8 @@ from .models import (
     occurrence_for,
     public_data,
 )
-from .schedule import next_occurrence, occurrences_between
-from .scan_codes import generate_scan_code, used_scan_codes
+from .scan_codes import SCAN_CODE_COLLECTIONS, generate_scan_code, used_scan_codes
+from .schedule import next_occurrence, occurrences_between, occurrences_per_day
 from .storage import MedicationStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,7 +67,7 @@ class MedicationManager:
         self.data = ensure_current_data(loaded) if loaded else empty_data()
         self._recalculate_all_package_stock()
         self._unsub_timer = async_track_time_interval(
-            self.hass, self._async_tick, timedelta(seconds=30)
+            self.hass, self._async_tick, timedelta(seconds=TICK_SECONDS)
         )
         self._unsub_actions = self.hass.bus.async_listen(
             "mobile_app_notification_action", self._handle_notification_action
@@ -89,29 +95,182 @@ class MedicationManager:
 
         return unsubscribe
 
+    # ------------------------------------------------------------------
+    # Read models
+    # ------------------------------------------------------------------
+
+    def open_occurrences(self) -> list[dict[str, Any]]:
+        """Return unresolved tickets ordered by their scheduled time."""
+        return sorted(
+            (
+                occurrence
+                for occurrence in self.data["occurrences"]
+                if occurrence["status"] in OPEN_STATUSES
+            ),
+            key=lambda occurrence: occurrence["scheduled_at"],
+        )
+
+    def due_occurrences(self, now: datetime | None = None) -> list[dict[str, Any]]:
+        """Return open tickets that are due right now and not snoozed."""
+        moment = now or dt_util.now()
+        return [
+            occurrence
+            for occurrence in self.open_occurrences()
+            if _is_due(occurrence, moment)
+        ]
+
+    def occurrence_label(self, occurrence: dict[str, Any]) -> str:
+        """Return a human readable one-line summary of a ticket."""
+        parts = []
+        for item in occurrence["items"]:
+            remaining = round(item["planned_dose"] - item["taken_dose"], 3)
+            if remaining <= 0:
+                continue
+            medication = self._find("medications", item["medication_id"])
+            name = medication["name"] if medication else "?"
+            unit = medication["unit"] if medication else ""
+            parts.append(f"{remaining:g} {unit} {name}".strip())
+        title = occurrence.get("regimen_name") or translate(
+            self.hass, "notification.unplanned"
+        )
+        return f"{title}: {', '.join(parts)}" if parts else title
+
+    def upcoming(self, limit: int = 25) -> list[dict[str, Any]]:
+        """Return the next scheduled intake per active regimen."""
+        now = dt_util.now()
+        result: list[dict[str, Any]] = []
+        for regimen in self.data["regimens"]:
+            if not regimen.get("active", True):
+                continue
+            value = next_occurrence(regimen["schedule"], now)
+            if value is None:
+                continue
+            result.append(
+                {
+                    "regimen_id": regimen["id"],
+                    "regimen_name": regimen["name"],
+                    "scheduled_at": value.isoformat(),
+                    "items": [
+                        {
+                            "medication_id": item["medication_id"],
+                            "medication_name": self._medication_name(
+                                item["medication_id"]
+                            ),
+                            "dose": item["dose"],
+                        }
+                        for item in regimen["items"]
+                    ],
+                }
+            )
+        return sorted(result, key=lambda item: item["scheduled_at"])[:limit]
+
+    def planned_events(
+        self, start: datetime, end: datetime
+    ) -> list[dict[str, Any]]:
+        """Return planned intakes in a window, for the calendar entity."""
+        events: list[dict[str, Any]] = []
+        for regimen in self.data["regimens"]:
+            if not regimen.get("active", True):
+                continue
+            for scheduled in occurrences_between(regimen["schedule"], start, end):
+                events.append(
+                    {
+                        "regimen_id": regimen["id"],
+                        "summary": regimen["name"],
+                        "start": scheduled,
+                        "description": ", ".join(
+                            f"{item['dose']:g} × "
+                            f"{self._medication_name(item['medication_id'])}"
+                            for item in regimen["items"]
+                        ),
+                        "instructions": regimen.get("instructions", ""),
+                    }
+                )
+        return sorted(events, key=lambda event: event["start"])
+
+    def daily_consumption(self, medication_id: str) -> float:
+        """Return the planned amount of one medication consumed per day."""
+        total = 0.0
+        for regimen in self.data["regimens"]:
+            if not regimen.get("active", True):
+                continue
+            per_day = occurrences_per_day(regimen["schedule"])
+            for item in regimen["items"]:
+                if item["medication_id"] == medication_id:
+                    total += float(item["dose"]) * per_day
+        return round(total, 4)
+
+    def days_of_supply(self, medication_id: str) -> float | None:
+        """Return how many days the current stock lasts, or None when unplanned."""
+        per_day = self.daily_consumption(medication_id)
+        if per_day <= 0:
+            return None
+        medication = self._find("medications", medication_id)
+        if not medication:
+            return None
+        return round(float(medication["stock"]) / per_day, 1)
+
+    def adherence(self, days: int = ADHERENCE_WINDOW_DAYS) -> dict[str, Any]:
+        """Return adherence statistics over the retained scheduled history."""
+        since = dt_util.now() - timedelta(days=days)
+        taken = partial = skipped = missed = 0
+        for occurrence in self.data["occurrences"]:
+            if occurrence.get("unplanned"):
+                continue
+            if occurrence["status"] not in CLOSED_STATUSES:
+                continue
+            scheduled = _parse_optional_datetime(occurrence.get("scheduled_at"))
+            if scheduled is None or dt_util.as_local(scheduled) < since:
+                continue
+            if occurrence["status"] == "taken":
+                if all(
+                    item["taken_dose"] >= item["planned_dose"]
+                    for item in occurrence["items"]
+                ):
+                    taken += 1
+                else:
+                    partial += 1
+            elif occurrence["status"] == "skipped":
+                skipped += 1
+            else:
+                missed += 1
+        total = taken + partial + skipped + missed
+        rate = round(100 * (taken + 0.5 * partial) / total, 1) if total else None
+        return {
+            "window_days": days,
+            "total": total,
+            "taken": taken,
+            "partial": partial,
+            "skipped": skipped,
+            "missed": missed,
+            "rate": rate,
+        }
+
+    def find_by_scan_code(self, code: str) -> tuple[str, dict[str, Any]] | None:
+        """Resolve a printed scan code to its collection and record."""
+        for collection in SCAN_CODE_COLLECTIONS:
+            for item in self.data.get(collection, []):
+                if str(item.get("scan_code", "")) == code:
+                    return collection, item
+        return None
+
     def snapshot(self) -> dict[str, Any]:
         """Return state plus calculated dashboard data."""
         result = public_data(self.data)
         for occurrence in result["occurrences"]:
-            if occurrence["status"] not in ("pending", "partial"):
+            if occurrence["status"] not in OPEN_STATUSES:
                 continue
             for item in occurrence["items"]:
                 remaining = round(item["planned_dose"] - item["taken_dose"], 3)
                 item["package_plan"] = self.package_plan(
                     item["medication_id"], remaining, strict=False
                 )
+        for medication in result["medications"]:
+            medication["daily_consumption"] = self.daily_consumption(medication["id"])
+            medication["days_of_supply"] = self.days_of_supply(medication["id"])
         result["server_time"] = dt_util.now().isoformat()
-        upcoming: list[dict[str, str]] = []
-        now = dt_util.now()
-        for regimen in self.data["regimens"]:
-            if not regimen.get("active", True):
-                continue
-            value = next_occurrence(regimen["schedule"], now)
-            if value:
-                upcoming.append(
-                    {"regimen_id": regimen["id"], "scheduled_at": value.isoformat()}
-                )
-        result["upcoming"] = sorted(upcoming, key=lambda item: item["scheduled_at"])
+        result["upcoming"] = self.upcoming()
+        result["adherence"] = self.adherence()
         result["notify_services"] = sorted(
             f"{domain}.{service}"
             for domain, services in self.hass.services.async_services().items()
@@ -122,6 +281,10 @@ class MedicationManager:
             state.entity_id for state in self.hass.states.async_all("script")
         )
         return result
+
+    # ------------------------------------------------------------------
+    # Import and export
+    # ------------------------------------------------------------------
 
     async def async_export_history(
         self, start_date: str, end_date: str, export_format: str
@@ -148,6 +311,7 @@ class MedicationManager:
             previous = self.data
             self.data = imported
             try:
+                self._recalculate_all_package_stock()
                 await self._changed()
             except Exception:
                 self.data = previous
@@ -159,6 +323,10 @@ class MedicationManager:
                 "occurrences": len(self.data["occurrences"]),
             }
 
+    # ------------------------------------------------------------------
+    # Master data
+    # ------------------------------------------------------------------
+
     async def async_save_medication(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Create or update a medication."""
         async with self._lock:
@@ -166,12 +334,9 @@ class MedicationManager:
             existing = (
                 self._find("medications", medication_id) if medication_id else None
             )
-            normalized_raw = dict(raw)
-            normalized_raw["stock_mode"] = "packages"
-            normalized_raw["stock"] = (
-                self._package_stock(existing["id"]) if existing else 0
-            )
-            medication = normalize_medication(normalized_raw, medication_id)
+            if medication_id and existing is None:
+                raise ValueError("Unknown medication")
+            medication = normalize_medication(raw, medication_id)
             medication["scan_code"] = (
                 existing.get("scan_code")
                 if existing and existing.get("scan_code")
@@ -197,6 +362,13 @@ class MedicationManager:
                 for item in regimen["items"]
             ):
                 raise ValueError("Medication is still used by an intake")
+            if any(
+                item["medication_id"] == medication_id
+                for occurrence in self.data["occurrences"]
+                if occurrence["status"] in OPEN_STATUSES
+                for item in occurrence["items"]
+            ):
+                raise ValueError("Medication is still used by an open intake")
             self.data["medications"].remove(medication)
             self.data["packages"] = [
                 package
@@ -212,10 +384,10 @@ class MedicationManager:
             medication = self._require("medications", medication_id)
             package_id = str(raw.get("id", "")) or None
             existing = self._find("packages", package_id) if package_id else None
+            if package_id and existing is None:
+                raise ValueError("Unknown package")
             if existing and existing["medication_id"] != medication_id:
                 raise ValueError("A package cannot be moved to another medication")
-            if not existing and medication.get("stock_mode", "manual") == "manual":
-                self._convert_manual_stock_to_package(medication)
             normalized_raw = dict(raw)
             if not str(normalized_raw.get("nickname", "")).strip():
                 normalized_raw["nickname"] = (
@@ -270,6 +442,8 @@ class MedicationManager:
         async with self._lock:
             regimen_id = str(raw.get("id", "")) or None
             existing = self._find("regimens", regimen_id) if regimen_id else None
+            if regimen_id and existing is None:
+                raise ValueError("Unknown regimen")
             regimen = normalize_regimen(
                 raw,
                 {item["id"] for item in self.data["medications"]},
@@ -280,6 +454,7 @@ class MedicationManager:
             )
             if existing:
                 self.data["regimens"][self.data["regimens"].index(existing)] = regimen
+                self._resync_open_occurrences(regimen)
             else:
                 self.data["regimens"].append(regimen)
             await self._changed()
@@ -294,9 +469,31 @@ class MedicationManager:
                 occurrence
                 for occurrence in self.data["occurrences"]
                 if occurrence["regimen_id"] != regimen_id
-                or occurrence["status"] in ("taken", "skipped")
+                or occurrence["status"] in CLOSED_STATUSES
             ]
             await self._changed()
+
+    def _resync_open_occurrences(self, regimen: dict[str, Any]) -> None:
+        """Drop untouched future tickets that no longer match an edited plan."""
+        now = dt_util.now()
+        kept: list[dict[str, Any]] = []
+        for occurrence in self.data["occurrences"]:
+            if (
+                occurrence["regimen_id"] != regimen["id"]
+                or occurrence["status"] != "pending"
+                or any(item["taken_dose"] for item in occurrence["items"])
+            ):
+                kept.append(occurrence)
+                continue
+            scheduled = _parse_optional_datetime(occurrence.get("scheduled_at"))
+            if scheduled is None or dt_util.as_local(scheduled) <= now:
+                occurrence["regimen_name"] = regimen["name"]
+                kept.append(occurrence)
+        self.data["occurrences"] = kept
+
+    # ------------------------------------------------------------------
+    # Intake
+    # ------------------------------------------------------------------
 
     async def async_record_intake(
         self,
@@ -307,7 +504,7 @@ class MedicationManager:
         """Record all or selected remaining doses exactly once."""
         async with self._lock:
             occurrence = self._require("occurrences", occurrence_id)
-            if occurrence["status"] in ("taken", "skipped"):
+            if occurrence["status"] in CLOSED_STATUSES:
                 return public_data(occurrence)
             complete = self._record_intake_locked(occurrence, doses, user_id)
             await self._changed()
@@ -319,6 +516,7 @@ class MedicationManager:
         items: list[dict[str, Any]],
         user_id: str | None = None,
         taken_at: datetime | None = None,
+        note: str = "",
     ) -> dict[str, Any]:
         """Record an unscheduled intake with the same stock guarantees."""
         async with self._lock:
@@ -351,6 +549,7 @@ class MedicationManager:
                 "regimen_id": None,
                 "regimen_name": None,
                 "unplanned": True,
+                "note": str(note or "").strip()[:500],
                 "scheduled_at": actual.isoformat(),
                 "status": "pending",
                 "items": occurrence_items,
@@ -377,9 +576,9 @@ class MedicationManager:
             raise ValueError("Snooze time must be in the future")
         async with self._lock:
             occurrence = self._require("occurrences", occurrence_id)
-            if occurrence["status"] not in ("pending", "partial"):
+            if occurrence["status"] not in OPEN_STATUSES:
                 raise ValueError("Only open intakes can be snoozed")
-            occurrence["snoozed_until"] = until.isoformat()
+            occurrence["snoozed_until"] = dt_util.as_local(until).isoformat()
             await self._changed()
             return public_data(occurrence)
 
@@ -396,16 +595,17 @@ class MedicationManager:
             if scheduled is None:
                 raise ValueError("Invalid scheduled time")
             now = dt_util.now()
-            if dt_util.as_local(scheduled).date() > now.date():
+            local_scheduled = dt_util.as_local(scheduled)
+            if local_scheduled.date() > now.date():
                 raise ValueError("Only due intakes can shift to tomorrow")
             target_date = now.date() + timedelta(days=1)
-            shift_days = (target_date - dt_util.as_local(scheduled).date()).days
+            shift_days = (target_date - local_scheduled.date()).days
             start_date = date.fromisoformat(regimen["schedule"]["start_date"])
             regimen["schedule"]["start_date"] = (
                 start_date + timedelta(days=shift_days)
             ).isoformat()
             occurrence["scheduled_at"] = (
-                dt_util.as_local(scheduled) + timedelta(days=shift_days)
+                local_scheduled + timedelta(days=shift_days)
             ).isoformat()
             occurrence["snoozed_until"] = None
             occurrence["last_reminded_at"] = None
@@ -427,7 +627,7 @@ class MedicationManager:
         """Mark an occurrence skipped without changing stock."""
         async with self._lock:
             occurrence = self._require("occurrences", occurrence_id)
-            if occurrence["status"] in ("taken", "skipped"):
+            if occurrence["status"] in CLOSED_STATUSES:
                 return public_data(occurrence)
             occurrence["status"] = "skipped"
             occurrence["taken_at"] = dt_util.now().isoformat()
@@ -457,7 +657,7 @@ class MedicationManager:
             requested = (
                 remaining
                 if doses is None
-                else float(doses.get(item["medication_id"], 0))
+                else _as_float(doses.get(item["medication_id"], 0))
             )
             if not math.isfinite(requested) or requested < 0 or requested > remaining:
                 raise ValueError("Taken dose exceeds the remaining planned dose")
@@ -467,18 +667,15 @@ class MedicationManager:
             before = float(medication["stock"])
             if requested > before:
                 raise ValueError(f"Not enough stock for {medication['name']}")
-            package_parts = (
-                self._package_deductions(medication["id"], requested, strict=True)
-                if medication.get("stock_mode") == "packages"
-                else []
-            )
             changes.append(
                 {
                     "item": item,
                     "medication": medication,
                     "requested": requested,
                     "before": before,
-                    "package_parts": package_parts,
+                    "package_parts": self._package_deductions(
+                        medication["id"], requested, strict=True
+                    ),
                 }
             )
         if not changes:
@@ -489,18 +686,14 @@ class MedicationManager:
             item = change["item"]
             medication = change["medication"]
             requested = change["requested"]
-            parts = change["package_parts"]
-            if parts:
-                for package, amount in parts:
-                    package["remaining_quantity"] = round(
-                        package["remaining_quantity"] - amount, 3
-                    )
-                    item.setdefault("allocations", []).append(
-                        self._package_snapshot(package, amount, taken_at)
-                    )
-                self._recalculate_package_stock(medication["id"])
-            else:
-                medication["stock"] = round(change["before"] - requested, 3)
+            for package, amount in change["package_parts"]:
+                package["remaining_quantity"] = round(
+                    package["remaining_quantity"] - amount, 3
+                )
+                item.setdefault("allocations", []).append(
+                    self._package_snapshot(package, amount, taken_at)
+                )
+            self._recalculate_package_stock(medication["id"])
             item["taken_dose"] = round(item["taken_dose"] + requested, 3)
             item["taken_at"] = taken_at
             if (
@@ -512,7 +705,10 @@ class MedicationManager:
                     EVENT_LOW_STOCK,
                     {
                         "medication_id": medication["id"],
+                        "medication_name": medication["name"],
                         "stock": medication["stock"],
+                        "unit": medication["unit"],
+                        "low_stock_threshold": medication["low_stock_threshold"],
                     },
                 )
         complete = all(
@@ -531,18 +727,22 @@ class MedicationManager:
             {
                 "occurrence_id": occurrence["id"],
                 "regimen_id": occurrence.get("regimen_id"),
+                "regimen_name": occurrence.get("regimen_name"),
                 "unplanned": occurrence.get("unplanned", False),
                 "complete": complete,
                 "items": public_data(occurrence["items"]),
             },
         )
 
+    # ------------------------------------------------------------------
+    # Stock and packages
+    # ------------------------------------------------------------------
+
     def package_plan(
         self, medication_id: str, amount: float, *, strict: bool = True
     ) -> list[dict[str, Any]]:
         """Return the FEFO packages recommended for a dose without mutating stock."""
-        medication = self._find("medications", medication_id)
-        if not medication or medication.get("stock_mode") != "packages" or amount <= 0:
+        if amount <= 0 or not self._find("medications", medication_id):
             return []
         return [
             self._package_snapshot(package, part, None)
@@ -611,30 +811,13 @@ class MedicationManager:
 
     def _recalculate_package_stock(self, medication_id: str) -> None:
         medication = self._find("medications", medication_id)
-        if medication and medication.get("stock_mode") == "packages":
+        if medication:
+            medication["stock_mode"] = "packages"
             medication["stock"] = self._package_stock(medication_id)
 
     def _recalculate_all_package_stock(self) -> None:
         for medication in self.data["medications"]:
             self._recalculate_package_stock(medication["id"])
-
-    def _convert_manual_stock_to_package(self, medication: dict[str, Any]) -> None:
-        current = float(medication.get("stock", 0))
-        medication["stock_mode"] = "packages"
-        if current <= 0:
-            medication["stock"] = 0
-            return
-        package = normalize_package(
-            {
-                "nickname": "Legacy",
-                "quantity": current,
-                "remaining_quantity": current,
-            },
-            medication["id"],
-        )
-        package["created_at"] = dt_util.now().isoformat()
-        package["scan_code"] = self._new_scan_code(f"packages:{package['id']}")
-        self.data["packages"].append(package)
 
     def _next_package_nickname(self, medication_id: str) -> str:
         used = {
@@ -645,79 +828,127 @@ class MedicationManager:
             if nickname.casefold() not in used:
                 return nickname
         index = len(used)
-        return f"{PACKAGE_NICKNAMES[index % len(PACKAGE_NICKNAMES)]} {index + 1}"
+        while True:
+            base = PACKAGE_NICKNAMES[index % len(PACKAGE_NICKNAMES)]
+            candidate = f"{base} {index + 1}"
+            if candidate.casefold() not in used:
+                return candidate
+            index += 1
+
+    # ------------------------------------------------------------------
+    # Scheduling loop
+    # ------------------------------------------------------------------
 
     async def _async_tick(self, now: datetime) -> None:
-        """Create due tickets and emit reminders."""
+        """Create due tickets, send reminders and expire abandoned intakes."""
         async with self._lock:
             now = dt_util.as_local(now)
-            previous_raw = self.data.get("last_generated_at")
-            previous = _parse_optional_datetime(previous_raw) or now - timedelta(
-                minutes=1
-            )
-            previous = max(dt_util.as_local(previous), now - timedelta(days=30))
-            known = {
-                (item["regimen_id"], item["scheduled_at"])
-                for item in self.data["occurrences"]
-            }
-            created: list[dict[str, Any]] = []
-            for regimen in self.data["regimens"]:
-                if not regimen.get("active", True):
-                    continue
-                created_at = (
-                    _parse_optional_datetime(regimen.get("created_at")) or previous
-                )
-                range_start = max(
-                    previous - timedelta(minutes=1), dt_util.as_local(created_at)
-                )
-                for scheduled in occurrences_between(
-                    regimen["schedule"], range_start, now
-                ):
-                    key = (regimen["id"], scheduled.isoformat())
-                    if key not in known:
-                        ticket = occurrence_for(regimen, scheduled)
-                        ticket["scan_code"] = self._new_scan_code(
-                            f"occurrences:{ticket['id']}"
-                        )
-                        self.data["occurrences"].append(ticket)
-                        created.append(ticket)
-                        known.add(key)
+            changed = self._generate_tickets(now)
+            changed = await self._process_open_occurrences(now) or changed
             self.data["last_generated_at"] = now.isoformat()
+            if changed:
+                await self._changed()
+            else:
+                # Time-dependent entities must refresh even without data changes.
+                self._notify_listeners()
 
-            changed = bool(created)
-            for occurrence in self.data["occurrences"]:
-                if occurrence["status"] not in ("pending", "partial"):
+    def _generate_tickets(self, now: datetime) -> bool:
+        previous = _parse_optional_datetime(self.data.get("last_generated_at"))
+        previous = (
+            dt_util.as_local(previous) if previous else now - timedelta(minutes=1)
+        )
+        previous = max(previous, now - timedelta(days=CATCHUP_DAYS))
+        known = {
+            (occurrence["regimen_id"], occurrence["scheduled_at"])
+            for occurrence in self.data["occurrences"]
+        }
+        created = False
+        for regimen in self.data["regimens"]:
+            if not regimen.get("active", True):
+                continue
+            created_at = _parse_optional_datetime(regimen.get("created_at"))
+            range_start = previous - timedelta(minutes=1)
+            if created_at is not None:
+                range_start = max(range_start, dt_util.as_local(created_at))
+            for scheduled in occurrences_between(regimen["schedule"], range_start, now):
+                key = (regimen["id"], scheduled.isoformat())
+                if key in known:
                     continue
-                due = _parse_optional_datetime(occurrence.get("scheduled_at"))
-                snoozed = _parse_optional_datetime(occurrence.get("snoozed_until"))
-                if not due or due > now or (snoozed and snoozed > now):
-                    continue
-                regimen = self._find("regimens", occurrence["regimen_id"])
-                if not regimen or not regimen.get("active", True):
-                    continue
-                last = _parse_optional_datetime(occurrence.get("last_reminded_at"))
-                repeat = timedelta(minutes=int(regimen["repeat_minutes"]))
-                if last and dt_util.as_local(last) + repeat > now:
-                    continue
-                await self._async_notify(regimen, occurrence)
-                occurrence["last_reminded_at"] = now.isoformat()
+                ticket = occurrence_for(regimen, scheduled)
+                ticket["scan_code"] = self._new_scan_code(
+                    f"occurrences:{ticket['id']}"
+                )
+                self.data["occurrences"].append(ticket)
+                known.add(key)
+                created = True
+        return created
+
+    async def _process_open_occurrences(self, now: datetime) -> bool:
+        changed = False
+        for occurrence in self.data["occurrences"]:
+            if occurrence["status"] not in OPEN_STATUSES:
+                continue
+            due = _parse_optional_datetime(occurrence.get("scheduled_at"))
+            if due is None:
+                continue
+            due = dt_util.as_local(due)
+            if due > now:
+                continue
+            regimen = self._find("regimens", occurrence.get("regimen_id"))
+            if regimen is None:
+                continue
+            auto_miss = int(regimen.get("auto_miss_after_minutes", 0) or 0)
+            if auto_miss and now >= due + timedelta(minutes=auto_miss):
+                occurrence["status"] = "missed"
+                occurrence["taken_at"] = None
                 occurrence["snoozed_until"] = None
-                occurrence["reminders_sent"] += 1
                 changed = True
                 self.hass.bus.async_fire(
-                    EVENT_DUE,
+                    EVENT_MISSED,
                     {
                         "occurrence_id": occurrence["id"],
                         "regimen_id": regimen["id"],
+                        "regimen_name": regimen["name"],
                         "scheduled_at": occurrence["scheduled_at"],
                     },
                 )
-            if changed:
-                await self._changed()
+                continue
+            if not regimen.get("active", True):
+                continue
+            snoozed = _parse_optional_datetime(occurrence.get("snoozed_until"))
+            snoozed = dt_util.as_local(snoozed) if snoozed else None
+            if snoozed and snoozed > now:
+                continue
+            window = int(regimen.get("reminder_window_minutes", 0) or 0)
+            if snoozed is None and window and now > due + timedelta(minutes=window):
+                continue
+            last = _parse_optional_datetime(occurrence.get("last_reminded_at"))
+            repeat = timedelta(minutes=int(regimen["repeat_minutes"]))
+            # An expired snooze is an explicit user request and always fires.
+            if snoozed is None and last and dt_util.as_local(last) + repeat > now:
+                continue
+            await self._async_notify(regimen, occurrence)
+            occurrence["last_reminded_at"] = now.isoformat()
+            occurrence["snoozed_until"] = None
+            occurrence["reminders_sent"] = int(occurrence.get("reminders_sent", 0)) + 1
+            changed = True
+            self.hass.bus.async_fire(
+                EVENT_DUE,
+                {
+                    "occurrence_id": occurrence["id"],
+                    "regimen_id": regimen["id"],
+                    "regimen_name": regimen["name"],
+                    "scheduled_at": occurrence["scheduled_at"],
+                    "reminders_sent": occurrence["reminders_sent"],
+                },
+            )
+        return changed
 
     async def _async_notify(
         self, regimen: dict[str, Any], occurrence: dict[str, Any]
     ) -> None:
+        if not regimen["notify_services"] and not regimen["scripts"]:
+            return
         medications = {item["id"]: item for item in self.data["medications"]}
         lines: list[str] = []
         for item in occurrence["items"]:
@@ -782,9 +1013,8 @@ class MedicationManager:
                         "title": translate(self.hass, "notification.snooze_30"),
                     },
                     {
-                        "action": "URI",
-                        "title": translate(self.hass, "notification.details"),
-                        "uri": path,
+                        "action": f"MED_SKIP_{occurrence_id}",
+                        "title": translate(self.hass, "notification.skip"),
                     },
                 ],
             },
@@ -803,7 +1033,10 @@ class MedicationManager:
         for entity_id in regimen["scripts"]:
             try:
                 await self.hass.services.async_call(
-                    "script", "turn_on", {"entity_id": entity_id}, blocking=False
+                    "script",
+                    "turn_on",
+                    {"entity_id": entity_id},
+                    blocking=False,
                 )
             except Exception:
                 _LOGGER.exception(
@@ -813,22 +1046,21 @@ class MedicationManager:
     @callback
     def _handle_notification_action(self, event: Event) -> None:
         action = str(event.data.get("action", ""))
+        operation = None
         if action.startswith("MED_TAKE_"):
-            self.hass.async_create_task(
-                self._async_run_notification_action(
-                    self.async_record_intake(
-                        action.removeprefix("MED_TAKE_"), user_id=None
-                    )
-                )
+            operation = self.async_record_intake(
+                action.removeprefix("MED_TAKE_"), user_id=None
             )
         elif action.startswith("MED_SNOOZE30_"):
+            operation = self.async_snooze(
+                action.removeprefix("MED_SNOOZE30_"),
+                dt_util.now() + timedelta(minutes=30),
+            )
+        elif action.startswith("MED_SKIP_"):
+            operation = self.async_skip(action.removeprefix("MED_SKIP_"))
+        if operation is not None:
             self.hass.async_create_task(
-                self._async_run_notification_action(
-                    self.async_snooze(
-                        action.removeprefix("MED_SNOOZE30_"),
-                        dt_util.now() + timedelta(minutes=30),
-                    )
-                )
+                self._async_run_notification_action(operation)
             )
 
     async def _async_run_notification_action(self, operation) -> None:
@@ -838,30 +1070,46 @@ class MedicationManager:
         except (ValueError, TypeError, KeyError) as err:
             _LOGGER.warning("Ignored invalid medication notification action: %s", err)
 
+    # ------------------------------------------------------------------
+    # Internals
+    # ------------------------------------------------------------------
+
     async def _changed(self) -> None:
         self._trim_history()
         await self._store.async_save(self.data)
+        self._notify_listeners()
+
+    def _notify_listeners(self) -> None:
         for listener in tuple(self._listeners):
-            listener()
+            try:
+                listener()
+            except Exception:  # A broken listener must not stop the others.
+                _LOGGER.exception("Medication Reminder listener failed")
 
     def _trim_history(self) -> None:
         completed = sorted(
             (
                 item
                 for item in self.data["occurrences"]
-                if item["status"] in ("taken", "skipped")
+                if item["status"] in CLOSED_STATUSES
             ),
-            key=lambda item: item["scheduled_at"],
+            key=lambda item: item.get("taken_at") or item["scheduled_at"],
             reverse=True,
         )
         keep_ids = {item["id"] for item in completed[:MAX_HISTORY]}
         self.data["occurrences"] = [
             item
             for item in self.data["occurrences"]
-            if item["status"] not in ("taken", "skipped") or item["id"] in keep_ids
+            if item["status"] not in CLOSED_STATUSES or item["id"] in keep_ids
         ]
 
+    def _medication_name(self, medication_id: str) -> str:
+        medication = self._find("medications", medication_id)
+        return medication["name"] if medication else "?"
+
     def _find(self, collection: str, item_id: str | None) -> dict[str, Any] | None:
+        if not item_id:
+            return None
         return next(
             (item for item in self.data[collection] if item["id"] == item_id), None
         )
@@ -875,6 +1123,22 @@ class MedicationManager:
     def _new_scan_code(self, seed: str) -> str:
         """Allocate a compact code without changing any existing assignment."""
         return generate_scan_code(seed, used_scan_codes(self.data))
+
+
+def _is_due(occurrence: dict[str, Any], now: datetime) -> bool:
+    """Return whether an open occurrence is due and not currently snoozed."""
+    scheduled = _parse_optional_datetime(occurrence.get("scheduled_at"))
+    if scheduled is None or dt_util.as_local(scheduled) > now:
+        return False
+    snoozed = _parse_optional_datetime(occurrence.get("snoozed_until"))
+    return snoozed is None or dt_util.as_local(snoozed) <= now
+
+
+def _as_float(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError) as err:
+        raise ValueError("Taken dose must be a number") from err
 
 
 def _parse_optional_datetime(value: str | None) -> datetime | None:

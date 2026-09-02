@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from hashlib import sha256
 import re
+from hashlib import sha256
 from typing import Any
-
 
 SCAN_CODE_PREFIX = "med"
 SCAN_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"

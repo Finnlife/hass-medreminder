@@ -6,19 +6,30 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import sys
+import types
 import unittest
 
 
-MODULE = (
-    Path(__file__).parents[1]
-    / "custom_components"
-    / "medication_reminder"
-    / "history_export.py"
-)
-spec = importlib.util.spec_from_file_location("history_export_test_module", MODULE)
-history_export = importlib.util.module_from_spec(spec)
-assert spec and spec.loader
-spec.loader.exec_module(history_export)
+ROOT = Path(__file__).parents[1] / "custom_components" / "medication_reminder"
+package = types.ModuleType("history_export_test_package")
+package.__path__ = [str(ROOT)]
+sys.modules.setdefault("history_export_test_package", package)
+
+
+def _load(name: str):
+    spec = importlib.util.spec_from_file_location(
+        f"history_export_test_package.{name}", ROOT / f"{name}.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_load("const")
+history_export = _load("history_export")
 
 
 class HistoryExportTests(unittest.TestCase):

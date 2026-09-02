@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
-from copy import deepcopy
 import json
 import math
+from copy import deepcopy
+from datetime import date, datetime
 from typing import Any
 
-from .const import STORAGE_MINOR_VERSION, STORAGE_VERSION
+from .const import ALL_STATUSES, STORAGE_MINOR_VERSION, STORAGE_VERSION
 from .migrations import migrate_storage
-
 
 BACKUP_FORMAT = "medication_reminder_backup"
 BACKUP_VERSION = 1
 COLLECTIONS = ("medications", "packages", "regimens", "occurrences")
-OCCURRENCE_STATUSES = ("pending", "partial", "taken", "skipped")
+OCCURRENCE_STATUSES = ALL_STATUSES
 
 
 def build_backup_download(

@@ -41,7 +41,7 @@ class LocalizationTests(unittest.TestCase):
         english = _frontend_catalog("EN", source)
         german = _frontend_catalog("DE", source)
         self.assertEqual(set(english), set(german))
-        self.assertEqual(english["app.title"], "My medication schedule")
+        self.assertEqual(english["app.title"], "Medication")
 
     def test_every_literal_frontend_translation_key_exists(self) -> None:
         catalog_source = (FRONTEND / "localize.js").read_text(encoding="utf-8")

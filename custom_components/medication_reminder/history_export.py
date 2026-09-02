@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import csv
-from datetime import date, datetime, timezone
 import io
 import json
+from datetime import date, datetime, timezone
 from typing import Any
 
+from .const import CLOSED_STATUSES
 
 CSV_FIELDS = (
     "occurrence_id",
@@ -50,7 +51,7 @@ def build_history_export(
     occurrences = [
         occurrence
         for occurrence in data.get("occurrences", [])
-        if occurrence.get("status") in ("taken", "skipped")
+        if occurrence.get("status") in CLOSED_STATUSES
         and _in_date_range(occurrence, start, end)
     ]
     occurrences.sort(key=lambda item: str(item.get("scheduled_at", "")))
@@ -110,7 +111,7 @@ def _export_occurrence(
     scheduled_at = occurrence.get("scheduled_at")
     taken_at = occurrence.get("taken_at")
     deviation = None
-    if not occurrence.get("unplanned") and occurrence.get("status") != "skipped":
+    if not occurrence.get("unplanned") and occurrence.get("status") == "taken":
         deviation = _difference_minutes(scheduled_at, taken_at)
     return {
         "occurrence_id": occurrence.get("id"),

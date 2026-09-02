@@ -10,6 +10,7 @@ PANEL = (
     ROOT / "custom_components/medication_reminder/frontend/medication-reminder-panel.js"
 )
 WEBSOCKET = ROOT / "custom_components/medication_reminder/websocket.py"
+STYLES = ROOT / "custom_components/medication_reminder/frontend/styles.js"
 
 
 class FrontendContractTests(unittest.TestCase):
@@ -65,30 +66,33 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn('item.unplanned ? this.t("unplanned.history_name")', panel)
 
     def test_stock_badges_do_not_stretch_to_icon_height(self) -> None:
-        panel = PANEL.read_text(encoding="utf-8")
-        self.assertIn(
-            ".stock-top{display:flex;align-items:flex-start;justify-content:space-between}",
-            panel,
-        )
+        styles = STYLES.read_text(encoding="utf-8")
+        head = styles[styles.index(".med-head {") : styles.index(".med-head h3")]
+        self.assertIn("align-items: flex-start", head)
+        self.assertIn("justify-content: space-between", head)
 
     def test_background_refresh_and_toasts_preserve_form_drafts(self) -> None:
         panel = PANEL.read_text(encoding="utf-8")
-        self.assertIn("(!showSpinner && !force && this.hasActiveDraft())", panel)
-        self.assertIn(
-            "if (showSpinner || force || !this.hasActiveDraft()) this.render();", panel
-        )
-        self.assertIn("this.renderToastOnly();", panel)
+        # A background refresh must never replace the main area while it is
+        # being typed into, and a toast must only touch the toast container.
+        self.assertIn("mainHasFocus()", panel)
+        self.assertIn("if (this.mainHasFocus()) return;", panel)
         show_toast = panel[
-            panel.index("showToast(message") : panel.index("medication(id)")
+            panel.index("showToast(message") : panel.index("mainHasFocus()")
         ]
-        self.assertNotIn("this.render();", show_toast)
+        self.assertIn("this.renderToast();", show_toast)
+        self.assertNotIn("this.renderAll();", show_toast)
+        self.assertNotIn("this.renderMain();", show_toast)
 
-    def test_render_reuses_the_live_modal_dom_and_focus(self) -> None:
+    def test_open_dialog_survives_background_refreshes(self) -> None:
         panel = PANEL.read_text(encoding="utf-8")
-        self.assertIn("this.renderedModal === this.modal", panel)
-        self.assertIn(".replaceWith(preservedModal)", panel)
-        self.assertIn("activeControl.focus({ preventScroll: true })", panel)
-        self.assertIn("activeControl.setSelectionRange(...selection)", panel)
+        # The dialog lives in its own container that is only rebuilt when the
+        # dialog identity changes, so a state refresh cannot reset its inputs.
+        self.assertIn("renderOverlay(force = false)", panel)
+        self.assertIn("if (!force && key === this.renderedModalKey) return;", panel)
+        render_all = panel[panel.index("renderAll() {") : panel.index("renderHeader() {")]
+        self.assertIn("this.renderOverlay();", render_all)
+        self.assertNotIn("this.renderOverlay(true);", render_all)
 
     def test_delete_all_requires_explicit_confirmation(self) -> None:
         panel = PANEL.read_text(encoding="utf-8")

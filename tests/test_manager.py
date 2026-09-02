@@ -1,6 +1,6 @@
 """Focused invariant tests for stock mutation behavior."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import importlib
 import json
 from pathlib import Path
@@ -103,16 +103,49 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
         manager = manager_module.MedicationManager(FakeHass())
         manager.data = {
             "medications": [
-                {"id": "a", "name": "A", "stock": 10.0, "low_stock_threshold": 2.0},
+                {
+                    "id": "a",
+                    "name": "A",
+                    "unit": "pieces",
+                    "stock": 10.0,
+                    "stock_mode": "packages",
+                    "low_stock_threshold": 2.0,
+                },
                 {
                     "id": "b",
                     "name": "B",
+                    "unit": "pieces",
                     "stock": second_stock,
+                    "stock_mode": "packages",
                     "low_stock_threshold": 2.0,
                 },
             ],
             "regimens": [],
-            "packages": [],
+            # Stock always originates from physical packages.
+            "packages": [
+                {
+                    "id": "base_a",
+                    "medication_id": "a",
+                    "nickname": "Base A",
+                    "lot_number": "",
+                    "expires_on": None,
+                    "external_code": "",
+                    "initial_quantity": 10.0,
+                    "remaining_quantity": 10.0,
+                    "created_at": "2026-01-01T00:00:00+02:00",
+                },
+                {
+                    "id": "base_b",
+                    "medication_id": "b",
+                    "nickname": "Base B",
+                    "lot_number": "",
+                    "expires_on": None,
+                    "external_code": "",
+                    "initial_quantity": max(second_stock, 0.001),
+                    "remaining_quantity": second_stock,
+                    "created_at": "2026-01-01T00:00:00+02:00",
+                },
+            ],
             "occurrences": [
                 {
                     "id": "ticket",
@@ -172,7 +205,7 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
             [item["taken_dose"] for item in manager.data["occurrences"][0]["items"]],
         )
 
-    async def test_first_package_preserves_existing_manual_stock(self) -> None:
+    async def test_new_package_adds_to_derived_stock(self) -> None:
         manager = self.manager_with_occurrence(second_stock=10)
         created = await manager.async_save_package(
             {
@@ -188,8 +221,7 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual("Apollo", created["nickname"])
         self.assertRegex(created["scan_code"], r"^med[A-Z2-9]{5}$")
-        self.assertEqual({"Legacy", "Apollo"}, {item["nickname"] for item in packages})
-        self.assertEqual(2, len({item["scan_code"] for item in packages}))
+        self.assertEqual({"Base A", "Apollo"}, {item["nickname"] for item in packages})
         self.assertEqual(15.0, manager.data["medications"][0]["stock"])
         self.assertEqual("packages", manager.data["medications"][0]["stock_mode"])
 
@@ -371,13 +403,19 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unplanned_intake_uses_same_package_allocation(self) -> None:
         manager = self.manager_with_occurrence(second_stock=10)
-        manager.data["packages"] = []
         result = await manager.async_record_unplanned_intake(
             [{"medication_id": "a", "dose": 2.5}], user_id="user"
         )
         self.assertTrue(result["unplanned"])
         self.assertEqual("taken", result["status"])
         self.assertEqual(7.5, manager.data["medications"][0]["stock"])
+        self.assertEqual(
+            [("base_a", 2.5)],
+            [
+                (part["package_id"], part["amount"])
+                for part in result["items"][0]["allocations"]
+            ],
+        )
 
     async def test_postpone_interval_moves_anchor_and_current_ticket(self) -> None:
         manager = self.manager_with_occurrence(second_stock=10)
@@ -401,6 +439,260 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             "2026-09-01", manager.data["regimens"][0]["schedule"]["start_date"]
         )
+
+
+class ReminderLoopTests(unittest.IsolatedAsyncioTestCase):
+    """Cover reminder throttling, snoozing and the missed-intake timeout."""
+
+    def build(self, **regimen_overrides):
+        manager = manager_module.MedicationManager(FakeHass())
+        now = datetime.now().astimezone()
+        regimen = {
+            "id": "plan",
+            "name": "Morning",
+            "active": True,
+            "items": [{"medication_id": "a", "dose": 1.0}],
+            "schedule": {"type": "weekly", "days": {}},
+            "notify_services": ["notify.phone"],
+            "scripts": [],
+            "repeat_minutes": 30,
+            "reminder_window_minutes": 0,
+            "auto_miss_after_minutes": 0,
+            "created_at": (now - timedelta(days=1)).isoformat(),
+        }
+        regimen.update(regimen_overrides)
+        manager.data = {
+            "medications": [
+                {
+                    "id": "a",
+                    "name": "A",
+                    "unit": "pieces",
+                    "stock": 10.0,
+                    "stock_mode": "packages",
+                    "low_stock_threshold": 2.0,
+                }
+            ],
+            "packages": [],
+            "regimens": [regimen],
+            "occurrences": [],
+            "last_generated_at": (now - timedelta(minutes=1)).isoformat(),
+        }
+        return manager, now
+
+    @staticmethod
+    def ticket(now, minutes_ago, **overrides):
+        occurrence = {
+            "id": "ticket",
+            "regimen_id": "plan",
+            "regimen_name": "Morning",
+            "unplanned": False,
+            "scheduled_at": (now - timedelta(minutes=minutes_ago)).isoformat(),
+            "status": "pending",
+            "items": [
+                {
+                    "medication_id": "a",
+                    "planned_dose": 1.0,
+                    "taken_dose": 0.0,
+                    "allocations": [],
+                }
+            ],
+            "taken_at": None,
+            "snoozed_until": None,
+            "last_reminded_at": None,
+            "reminders_sent": 0,
+            "completed_by": None,
+        }
+        occurrence.update(overrides)
+        return occurrence
+
+    async def test_reminder_window_stops_notification_spam(self) -> None:
+        manager, now = self.build(reminder_window_minutes=60)
+        manager.data["occurrences"] = [self.ticket(now, 180)]
+        await manager._async_tick(now)
+        self.assertEqual([], manager.hass.services.calls)
+        self.assertEqual(0, manager.data["occurrences"][0]["reminders_sent"])
+
+    async def test_reminder_is_sent_inside_the_window(self) -> None:
+        manager, now = self.build(reminder_window_minutes=60)
+        manager.data["occurrences"] = [self.ticket(now, 5)]
+        await manager._async_tick(now)
+        self.assertEqual(1, len(manager.hass.services.calls))
+        self.assertEqual(1, manager.data["occurrences"][0]["reminders_sent"])
+
+    async def test_expired_snooze_reminds_before_the_repeat_interval(self) -> None:
+        manager, now = self.build(repeat_minutes=240)
+        manager.data["occurrences"] = [
+            self.ticket(
+                now,
+                60,
+                last_reminded_at=(now - timedelta(minutes=10)).isoformat(),
+                snoozed_until=(now - timedelta(minutes=1)).isoformat(),
+                reminders_sent=1,
+            )
+        ]
+        await manager._async_tick(now)
+        self.assertEqual(1, len(manager.hass.services.calls))
+        self.assertIsNone(manager.data["occurrences"][0]["snoozed_until"])
+        self.assertEqual(2, manager.data["occurrences"][0]["reminders_sent"])
+
+    async def test_repeat_interval_throttles_without_snooze(self) -> None:
+        manager, now = self.build(repeat_minutes=240)
+        manager.data["occurrences"] = [
+            self.ticket(
+                now, 60, last_reminded_at=(now - timedelta(minutes=10)).isoformat()
+            )
+        ]
+        await manager._async_tick(now)
+        self.assertEqual([], manager.hass.services.calls)
+
+    async def test_auto_miss_closes_abandoned_intakes(self) -> None:
+        manager, now = self.build(auto_miss_after_minutes=60)
+        manager.data["occurrences"] = [self.ticket(now, 120)]
+        await manager._async_tick(now)
+        occurrence = manager.data["occurrences"][0]
+        self.assertEqual("missed", occurrence["status"])
+        self.assertEqual([], manager.hass.services.calls)
+        self.assertEqual(10.0, manager.data["medications"][0]["stock"])
+        self.assertIn(
+            "medication_reminder_missed",
+            [event for event, _data in manager.hass.bus.events],
+        )
+
+    async def test_auto_miss_leaves_future_intakes_untouched(self) -> None:
+        manager, now = self.build(auto_miss_after_minutes=60)
+        manager.data["occurrences"] = [self.ticket(now, -30)]
+        await manager._async_tick(now)
+        self.assertEqual("pending", manager.data["occurrences"][0]["status"])
+
+    async def test_editing_a_plan_drops_untouched_future_tickets(self) -> None:
+        manager, now = self.build()
+        manager.data["occurrences"] = [
+            self.ticket(now, 60, id="past"),
+            self.ticket(now, -60, id="future"),
+            self.ticket(
+                now,
+                -120,
+                id="future_touched",
+                status="partial",
+                items=[
+                    {
+                        "medication_id": "a",
+                        "planned_dose": 2.0,
+                        "taken_dose": 1.0,
+                        "allocations": [],
+                    }
+                ],
+            ),
+        ]
+        await manager.async_save_regimen(
+            {
+                "id": "plan",
+                "name": "Evening",
+                "items": [{"medication_id": "a", "dose": 1}],
+                "schedule": {"type": "weekly", "days": {"0": ["20:00"]}},
+            }
+        )
+        self.assertEqual(
+            ["past", "future_touched"],
+            [item["id"] for item in manager.data["occurrences"]],
+        )
+        self.assertEqual("Evening", manager.data["occurrences"][0]["regimen_name"])
+
+
+class DashboardMetricTests(unittest.IsolatedAsyncioTestCase):
+    """Cover the derived values that dashboards and entities rely on."""
+
+    def build(self):
+        manager = manager_module.MedicationManager(FakeHass())
+        manager.data = {
+            "medications": [
+                {
+                    "id": "a",
+                    "name": "A",
+                    "unit": "pieces",
+                    "stock": 20.0,
+                    "stock_mode": "packages",
+                    "low_stock_threshold": 2.0,
+                }
+            ],
+            "packages": [],
+            "regimens": [
+                {
+                    "id": "plan",
+                    "name": "Twice daily",
+                    "active": True,
+                    "items": [{"medication_id": "a", "dose": 1.0}],
+                    "schedule": {
+                        "type": "weekly",
+                        "days": {str(day): ["08:00", "20:00"] for day in range(7)},
+                    },
+                    "notify_services": [],
+                    "scripts": [],
+                    "repeat_minutes": 30,
+                    "reminder_window_minutes": 180,
+                    "auto_miss_after_minutes": 0,
+                }
+            ],
+            "occurrences": [],
+            "last_generated_at": None,
+        }
+        return manager
+
+    @staticmethod
+    def history_entry(identifier, status, taken, planned=1.0):
+        moment = (datetime.now().astimezone() - timedelta(days=1)).isoformat()
+        return {
+            "id": identifier,
+            "regimen_id": "plan",
+            "regimen_name": "Twice daily",
+            "unplanned": False,
+            "scheduled_at": moment,
+            "status": status,
+            "taken_at": moment,
+            "items": [
+                {
+                    "medication_id": "a",
+                    "planned_dose": planned,
+                    "taken_dose": taken,
+                    "allocations": [],
+                }
+            ],
+        }
+
+    def test_days_of_supply_uses_the_planned_daily_amount(self) -> None:
+        manager = self.build()
+        self.assertEqual(2.0, manager.daily_consumption("a"))
+        self.assertEqual(10.0, manager.days_of_supply("a"))
+
+    def test_days_of_supply_is_unknown_without_an_active_plan(self) -> None:
+        manager = self.build()
+        manager.data["regimens"][0]["active"] = False
+        self.assertEqual(0.0, manager.daily_consumption("a"))
+        self.assertIsNone(manager.days_of_supply("a"))
+
+    def test_adherence_counts_partial_intakes_as_half(self) -> None:
+        manager = self.build()
+        manager.data["occurrences"] = [
+            self.history_entry("1", "taken", 1.0),
+            self.history_entry("2", "taken", 0.5),
+            self.history_entry("3", "skipped", 0.0),
+            self.history_entry("4", "missed", 0.0),
+        ]
+        adherence = manager.adherence()
+        self.assertEqual(4, adherence["total"])
+        self.assertEqual(1, adherence["taken"])
+        self.assertEqual(1, adherence["partial"])
+        self.assertEqual(1, adherence["skipped"])
+        self.assertEqual(1, adherence["missed"])
+        self.assertEqual(37.5, adherence["rate"])
+
+    def test_adherence_ignores_unplanned_intakes(self) -> None:
+        manager = self.build()
+        entry = self.history_entry("u", "taken", 1.0)
+        entry["unplanned"] = True
+        manager.data["occurrences"] = [entry]
+        self.assertEqual(0, manager.adherence()["total"])
+        self.assertIsNone(manager.adherence()["rate"])
 
 
 if __name__ == "__main__":

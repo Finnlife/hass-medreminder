@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 import math
+from copy import deepcopy
 from typing import Any
 
-from .const import STORAGE_MINOR_VERSION, STORAGE_VERSION
+from .const import (
+    ALL_STATUSES,
+    DEFAULT_AUTO_MISS_MINUTES,
+    DEFAULT_REMINDER_WINDOW_MINUTES,
+    DEFAULT_REPEAT_MINUTES,
+    STORAGE_MINOR_VERSION,
+    STORAGE_VERSION,
+)
 from .scan_codes import ensure_scan_codes
 
 
@@ -36,11 +43,23 @@ def ensure_current_data(raw: dict[str, Any] | None) -> dict[str, Any]:
     data.setdefault("occurrences", [])
     data.setdefault("last_generated_at", None)
     _migrate_stock_to_packages(data)
+    for regimen in data["regimens"]:
+        regimen.setdefault("repeat_minutes", DEFAULT_REPEAT_MINUTES)
+        regimen.setdefault("reminder_window_minutes", DEFAULT_REMINDER_WINDOW_MINUTES)
+        regimen.setdefault("auto_miss_after_minutes", DEFAULT_AUTO_MISS_MINUTES)
+        regimen.setdefault("instructions", "")
+        regimen.setdefault("notify_services", [])
+        regimen.setdefault("scripts", [])
+        regimen.setdefault("active", True)
     for occurrence in data["occurrences"]:
         occurrence.setdefault("unplanned", False)
         occurrence.setdefault("regimen_name", None)
+        occurrence.setdefault("reminders_sent", 0)
+        if occurrence.get("status") not in ALL_STATUSES:
+            occurrence["status"] = "pending"
         for item in occurrence.get("items", []):
             item.setdefault("allocations", [])
+            item.setdefault("taken_dose", 0)
     ensure_scan_codes(data)
     return data
 

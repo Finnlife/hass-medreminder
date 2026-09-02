@@ -18,14 +18,48 @@
   },
   "entity": {
     "sensor": {
-      "stock": { "name": "Stock" },
-      "next_intake": { "name": "Next intake" },
-      "pending_intakes": { "name": "Pending intakes" },
-      "last_intake": { "name": "Last intake" }
+      "stock": {
+        "name": "Stock"
+      },
+      "days_of_supply": {
+        "name": "Days of supply"
+      },
+      "next_intake": {
+        "name": "Next intake"
+      },
+      "pending_intakes": {
+        "name": "Open intakes"
+      },
+      "overdue_count": {
+        "name": "Due now"
+      },
+      "last_intake": {
+        "name": "Last intake"
+      },
+      "adherence": {
+        "name": "Adherence"
+      }
     },
     "binary_sensor": {
-      "low_stock": { "name": "Low stock" },
-      "overdue_intakes": { "name": "Overdue intakes" }
+      "low_stock": {
+        "name": "Low stock"
+      },
+      "expiring_package": {
+        "name": "Package expiring"
+      },
+      "overdue_intakes": {
+        "name": "Intake due"
+      }
+    },
+    "todo": {
+      "intake_list": {
+        "name": "Medication intakes"
+      }
+    },
+    "calendar": {
+      "schedule_calendar": {
+        "name": "Medication schedule"
+      }
     }
   },
   "services": {
@@ -61,33 +95,74 @@
       "name": "Add package",
       "description": "Adds a physical package and recalculates the medication stock from all packages.",
       "fields": {
-        "medication_id": { "name": "Medication ID", "description": "Medication contained in the package." },
-        "quantity": { "name": "Quantity", "description": "Initial amount in the package." },
-        "nickname": { "name": "Nickname", "description": "Optional memorable package name; generated automatically when empty." },
-        "lot_number": { "name": "LOT number", "description": "Manufacturer lot or batch number." },
-        "expires_on": { "name": "Expiry date", "description": "Best-before or expiry date." },
-        "external_code": { "name": "External code", "description": "Optional barcode, QR, or DataMatrix content printed on the package." }
+        "medication_id": {
+          "name": "Medication ID",
+          "description": "Medication contained in the package."
+        },
+        "quantity": {
+          "name": "Quantity",
+          "description": "Initial amount in the package."
+        },
+        "nickname": {
+          "name": "Nickname",
+          "description": "Optional memorable package name; generated automatically when empty."
+        },
+        "lot_number": {
+          "name": "LOT number",
+          "description": "Manufacturer lot or batch number."
+        },
+        "expires_on": {
+          "name": "Expiry date",
+          "description": "Best-before or expiry date."
+        },
+        "external_code": {
+          "name": "External code",
+          "description": "Optional barcode, QR, or DataMatrix content printed on the package."
+        }
       }
     },
     "record_unplanned_intake": {
       "name": "Record unplanned intake",
       "description": "Records medication taken outside a schedule and deducts stock using FEFO.",
       "fields": {
-        "items": { "name": "Medications and doses", "description": "List of medication_id and dose objects." }
+        "items": {
+          "name": "Medications and doses",
+          "description": "List of medication_id and dose objects."
+        },
+        "note": {
+          "name": "Note",
+          "description": "Optional free-text note stored with the intake."
+        }
       }
     },
     "postpone_interval": {
       "name": "Move interval intake to tomorrow",
       "description": "Moves a due interval intake to tomorrow and shifts every following date by the same number of days.",
       "fields": {
-        "occurrence_id": { "name": "Occurrence ID", "description": "ID of the due untouched interval intake." }
+        "occurrence_id": {
+          "name": "Occurrence ID",
+          "description": "ID of the due untouched interval intake."
+        }
       }
     },
     "delete_all_data": {
       "name": "Delete all Medication Reminder data",
       "description": "Permanently deletes all medications, packages, schedules, tickets, and history while keeping the integration installed.",
       "fields": {
-        "confirmation": { "name": "Confirmation", "description": "Enter DELETE exactly to authorize permanent deletion." }
+        "confirmation": {
+          "name": "Confirmation",
+          "description": "Enter DELETE exactly to authorize permanent deletion."
+        }
+      }
+    },
+    "skip_intake": {
+      "name": "Skip intake",
+      "description": "Marks an open intake as skipped without changing stock.",
+      "fields": {
+        "occurrence_id": {
+          "name": "Occurrence ID",
+          "description": "ID of the open intake occurrence."
+        }
       }
     }
   }

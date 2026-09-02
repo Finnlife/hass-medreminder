@@ -69,6 +69,8 @@ class BackupTests(unittest.TestCase):
                     "notify_services": ["notify.phone"],
                     "scripts": ["script.reminder"],
                     "repeat_minutes": 30,
+                    "reminder_window_minutes": 180,
+                    "auto_miss_after_minutes": 0,
                     "active": True,
                     "instructions": "With water",
                 }

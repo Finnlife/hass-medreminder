@@ -18,14 +18,48 @@
   },
   "entity": {
     "sensor": {
-      "stock": { "name": "Bestand" },
-      "next_intake": { "name": "Nächste Einnahme" },
-      "pending_intakes": { "name": "Offene Einnahmen" },
-      "last_intake": { "name": "Letzte Einnahme" }
+      "stock": {
+        "name": "Bestand"
+      },
+      "days_of_supply": {
+        "name": "Reichweite"
+      },
+      "next_intake": {
+        "name": "Nächste Einnahme"
+      },
+      "pending_intakes": {
+        "name": "Offene Einnahmen"
+      },
+      "overdue_count": {
+        "name": "Jetzt fällig"
+      },
+      "last_intake": {
+        "name": "Letzte Einnahme"
+      },
+      "adherence": {
+        "name": "Therapietreue"
+      }
     },
     "binary_sensor": {
-      "low_stock": { "name": "Niedriger Bestand" },
-      "overdue_intakes": { "name": "Überfällige Einnahmen" }
+      "low_stock": {
+        "name": "Bestand niedrig"
+      },
+      "expiring_package": {
+        "name": "Packung läuft ab"
+      },
+      "overdue_intakes": {
+        "name": "Einnahme fällig"
+      }
+    },
+    "todo": {
+      "intake_list": {
+        "name": "Medikamenteneinnahmen"
+      }
+    },
+    "calendar": {
+      "schedule_calendar": {
+        "name": "Medikamentenplan"
+      }
     }
   },
   "services": {
@@ -61,33 +95,74 @@
       "name": "Packung hinzufügen",
       "description": "Fügt eine physische Packung hinzu und berechnet den Medikamentenbestand aus allen Packungen neu.",
       "fields": {
-        "medication_id": { "name": "Medikamenten-ID", "description": "Medikament in dieser Packung." },
-        "quantity": { "name": "Menge", "description": "Anfangsmenge in der Packung." },
-        "nickname": { "name": "Spitzname", "description": "Optionaler einprägsamer Packungsname; wird leer automatisch erzeugt." },
-        "lot_number": { "name": "LOT-Nummer", "description": "LOT- oder Chargennummer des Herstellers." },
-        "expires_on": { "name": "MHD", "description": "Mindesthaltbarkeits- oder Verfallsdatum." },
-        "external_code": { "name": "Externer Code", "description": "Optionaler Barcode-, QR- oder DataMatrix-Inhalt auf der Packung." }
+        "medication_id": {
+          "name": "Medikamenten-ID",
+          "description": "Medikament in dieser Packung."
+        },
+        "quantity": {
+          "name": "Menge",
+          "description": "Anfangsmenge in der Packung."
+        },
+        "nickname": {
+          "name": "Spitzname",
+          "description": "Optionaler einprägsamer Packungsname; wird leer automatisch erzeugt."
+        },
+        "lot_number": {
+          "name": "LOT-Nummer",
+          "description": "LOT- oder Chargennummer des Herstellers."
+        },
+        "expires_on": {
+          "name": "MHD",
+          "description": "Mindesthaltbarkeits- oder Verfallsdatum."
+        },
+        "external_code": {
+          "name": "Externer Code",
+          "description": "Optionaler Barcode-, QR- oder DataMatrix-Inhalt auf der Packung."
+        }
       }
     },
     "record_unplanned_intake": {
       "name": "Ungeplante Einnahme erfassen",
       "description": "Erfasst eine Einnahme außerhalb eines Plans und bucht Bestand nach FEFO ab.",
       "fields": {
-        "items": { "name": "Medikamente und Dosen", "description": "Liste aus Objekten mit medication_id und dose." }
+        "items": {
+          "name": "Medikamente und Dosen",
+          "description": "Liste aus Objekten mit medication_id und dose."
+        },
+        "note": {
+          "name": "Notiz",
+          "description": "Optionale Freitext-Notiz zur Einnahme."
+        }
       }
     },
     "postpone_interval": {
       "name": "Intervall-Einnahme auf morgen verschieben",
       "description": "Verschiebt eine fällige Intervall-Einnahme auf morgen und alle folgenden Termine um dieselbe Tageszahl.",
       "fields": {
-        "occurrence_id": { "name": "Vorgangs-ID", "description": "ID der fälligen, noch unberührten Intervall-Einnahme." }
+        "occurrence_id": {
+          "name": "Vorgangs-ID",
+          "description": "ID der fälligen, noch unberührten Intervall-Einnahme."
+        }
       }
     },
     "delete_all_data": {
       "name": "Alle Medication-Reminder-Daten löschen",
       "description": "Löscht alle Medikamente, Packungen, Pläne, Tickets und den Verlauf dauerhaft; die Integration bleibt installiert.",
       "fields": {
-        "confirmation": { "name": "Bestätigung", "description": "DELETE exakt eingeben, um das dauerhafte Löschen zu autorisieren." }
+        "confirmation": {
+          "name": "Bestätigung",
+          "description": "DELETE exakt eingeben, um das dauerhafte Löschen zu autorisieren."
+        }
+      }
+    },
+    "skip_intake": {
+      "name": "Einnahme auslassen",
+      "description": "Markiert eine offene Einnahme als ausgelassen, ohne den Bestand zu ändern.",
+      "fields": {
+        "occurrence_id": {
+          "name": "Einnahme-ID",
+          "description": "ID der offenen Einnahme."
+        }
       }
     }
   }

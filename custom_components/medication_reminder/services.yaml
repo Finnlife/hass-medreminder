@@ -51,6 +51,9 @@ record_unplanned_intake:
       required: true
       selector:
         object:
+    note:
+      selector:
+        text:
 postpone_interval:
   fields:
     occurrence_id:
@@ -60,6 +63,12 @@ postpone_interval:
 delete_all_data:
   fields:
     confirmation:
+      required: true
+      selector:
+        text:
+skip_intake:
+  fields:
+    occurrence_id:
       required: true
       selector:
         text:

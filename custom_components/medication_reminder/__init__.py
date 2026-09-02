@@ -6,17 +6,35 @@ from datetime import timedelta
 from pathlib import Path
 
 import voluptuous as vol
-
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, PANEL_STATIC_URL, PANEL_URL, PLATFORMS
+from .cleanup import async_prune_registries, async_registry_signature
+from .const import (
+    DOMAIN,
+    FRONTEND_CACHE_KEY,
+    PANEL_STATIC_URL,
+    PANEL_URL,
+    PLATFORMS,
+)
 from .manager import MedicationManager
 from .websocket import async_register_websocket_api
+
+SERVICES = (
+    "record_intake",
+    "record_unplanned_intake",
+    "skip_intake",
+    "snooze",
+    "postpone_interval",
+    "add_package",
+    "delete_all_data",
+)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -45,7 +63,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass=hass,
             webcomponent_name="medication-reminder-panel",
             frontend_url_path=PANEL_URL,
-            module_url=f"{PANEL_STATIC_URL}/medication-reminder-panel.js?v=0.5.0",
+            module_url=(
+                f"{PANEL_STATIC_URL}/medication-reminder-panel.js?v={FRONTEND_CACHE_KEY}"
+            ),
             sidebar_title="Medications",
             sidebar_icon="mdi:pill-multiple",
             require_admin=False,
@@ -54,6 +74,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    signature = async_registry_signature(manager.data)
+
+    @callback
+    def prune_registries() -> None:
+        nonlocal signature
+        current = async_registry_signature(manager.data)
+        if current == signature:
+            return
+        signature = current
+        async_prune_registries(hass, entry.entry_id, manager.data)
+
+    entry.async_on_unload(manager.async_add_listener(prune_registries))
     return True
 
 
@@ -65,39 +98,89 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await manager.async_close()
     if not hass.data[DOMAIN]["managers"]:
         frontend.async_remove_panel(hass, PANEL_URL)
+        for service in SERVICES:
+            hass.services.async_remove(DOMAIN, service)
+        hass.data[DOMAIN]["api_registered"] = False
     return True
 
 
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device: DeviceEntry
+) -> bool:
+    """Allow removing devices whose medication no longer exists."""
+    manager: MedicationManager | None = hass.data[DOMAIN]["managers"].get(
+        entry.entry_id
+    )
+    if manager is None:
+        return True
+    known = {item["id"] for item in manager.data["medications"]} | {DOMAIN}
+    return not any(
+        domain == DOMAIN and identifier in known
+        for domain, identifier in device.identifiers
+    )
+
+
 def _active_manager(hass: HomeAssistant) -> MedicationManager:
-    return next(iter(hass.data[DOMAIN]["managers"].values()))
+    managers = hass.data.get(DOMAIN, {}).get("managers", {})
+    if not managers:
+        raise HomeAssistantError("Medication Reminder is not configured")
+    return next(iter(managers.values()))
 
 
 def _register_services(hass: HomeAssistant) -> None:
+    async def _guard(coroutine):
+        try:
+            return await coroutine
+        except ValueError as err:
+            raise ServiceValidationError(str(err)) from err
+
     async def record(call: ServiceCall) -> None:
-        doses = call.data.get("doses")
-        await _active_manager(hass).async_record_intake(
-            call.data["occurrence_id"], doses, call.context.user_id
+        await _guard(
+            _active_manager(hass).async_record_intake(
+                call.data["occurrence_id"],
+                call.data.get("doses"),
+                call.context.user_id,
+            )
         )
 
     async def snooze(call: ServiceCall) -> None:
-        await _active_manager(hass).async_snooze(
-            call.data["occurrence_id"],
-            dt_util.now() + timedelta(minutes=call.data["minutes"]),
+        await _guard(
+            _active_manager(hass).async_snooze(
+                call.data["occurrence_id"],
+                dt_util.now() + timedelta(minutes=call.data["minutes"]),
+            )
         )
 
     async def add_package(call: ServiceCall) -> None:
-        await _active_manager(hass).async_save_package(dict(call.data))
+        await _guard(_active_manager(hass).async_save_package(dict(call.data)))
 
     async def record_unplanned(call: ServiceCall) -> None:
-        await _active_manager(hass).async_record_unplanned_intake(
-            call.data["items"], call.context.user_id
+        await _guard(
+            _active_manager(hass).async_record_unplanned_intake(
+                call.data["items"],
+                call.context.user_id,
+                note=call.data.get("note", ""),
+            )
         )
 
     async def postpone_interval(call: ServiceCall) -> None:
-        await _active_manager(hass).async_postpone_interval(call.data["occurrence_id"])
+        await _guard(
+            _active_manager(hass).async_postpone_interval(call.data["occurrence_id"])
+        )
+
+    async def skip_intake(call: ServiceCall) -> None:
+        await _guard(
+            _active_manager(hass).async_skip(
+                call.data["occurrence_id"], call.context.user_id
+            )
+        )
 
     async def delete_all_data(call: ServiceCall) -> None:
-        await _active_manager(hass).async_delete_all_data(call.data["confirmation"])
+        await _guard(
+            _active_manager(hass).async_delete_all_data(call.data["confirmation"])
+        )
+
+    occurrence_schema = vol.Schema({vol.Required("occurrence_id"): cv.string})
 
     hass.services.async_register(
         DOMAIN,
@@ -140,15 +223,16 @@ def _register_services(hass: HomeAssistant) -> None:
                             vol.Coerce(float), vol.Range(min=0.001)
                         ),
                     }
-                ]
+                ],
+                vol.Optional("note", default=""): cv.string,
             }
         ),
     )
     hass.services.async_register(
-        DOMAIN,
-        "postpone_interval",
-        postpone_interval,
-        schema=vol.Schema({vol.Required("occurrence_id"): cv.string}),
+        DOMAIN, "postpone_interval", postpone_interval, schema=occurrence_schema
+    )
+    hass.services.async_register(
+        DOMAIN, "skip_intake", skip_intake, schema=occurrence_schema
     )
     hass.services.async_register(
         DOMAIN,

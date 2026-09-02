@@ -70,6 +70,72 @@ class ScheduleTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             schedule.parse_time("24:00")
 
+    def test_interval_keeps_wall_clock_time_across_dst_change(self) -> None:
+        # Europe/Berlin leaves DST on 2026-10-25; the intake must stay at 08:00.
+        plan = {
+            "type": "interval",
+            "every_days": 2,
+            "start_date": "2026-10-21",
+            "time": "08:00",
+        }
+        values = schedule.occurrences_between(
+            plan,
+            datetime(2026, 10, 21, 0, 0, tzinfo=self.tz),
+            datetime(2026, 10, 29, 23, 59, tzinfo=self.tz),
+        )
+        self.assertEqual(
+            ["2026-10-21", "2026-10-23", "2026-10-25", "2026-10-27", "2026-10-29"],
+            [value.date().isoformat() for value in values],
+        )
+        self.assertEqual({8}, {value.hour for value in values})
+
+    def test_weekly_keeps_wall_clock_time_across_dst_change(self) -> None:
+        plan = {"type": "weekly", "days": {"6": ["08:00"]}}
+        values = schedule.occurrences_between(
+            plan,
+            datetime(2026, 10, 18, 0, 0, tzinfo=self.tz),
+            datetime(2026, 11, 3, 23, 59, tzinfo=self.tz),
+        )
+        self.assertEqual({8}, {value.hour for value in values})
+        self.assertEqual(
+            {3600 * 2, 3600}, {value.utcoffset().total_seconds() for value in values}
+        )
+
+    def test_next_occurrence_is_bounded_for_sparse_weekly_plans(self) -> None:
+        plan = {"type": "weekly", "days": {"6": ["08:00"]}}
+        value = schedule.next_occurrence(
+            plan, datetime(2026, 8, 31, 9, 0, tzinfo=self.tz)
+        )
+        self.assertEqual("2026-09-06T08:00:00+02:00", value.isoformat())
+
+    def test_next_occurrence_returns_none_without_weekdays(self) -> None:
+        self.assertIsNone(
+            schedule.next_occurrence(
+                {"type": "weekly", "days": {}},
+                datetime(2026, 8, 31, 9, 0, tzinfo=self.tz),
+            )
+        )
+
+    def test_interval_start_date_must_be_a_plain_date(self) -> None:
+        plan = {
+            "type": "interval",
+            "every_days": 1,
+            "start_date": "2026-08-31T13:00:00",
+            "time": "13:00",
+        }
+        with self.assertRaises(ValueError):
+            schedule.next_occurrence(
+                plan, datetime(2026, 8, 31, 9, 0, tzinfo=self.tz)
+            )
+
+    def test_occurrences_per_day_matches_plan_density(self) -> None:
+        weekly = {"type": "weekly", "days": {"0": ["08:00", "20:00"], "3": ["08:00"]}}
+        self.assertAlmostEqual(3 / 7, schedule.occurrences_per_day(weekly))
+        self.assertAlmostEqual(
+            0.5, schedule.occurrences_per_day({"type": "interval", "every_days": 2})
+        )
+        self.assertEqual(0.0, schedule.occurrences_per_day({"type": "other"}))
+
 
 if __name__ == "__main__":
     unittest.main()
