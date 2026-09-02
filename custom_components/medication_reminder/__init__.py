@@ -26,6 +26,10 @@ from .const import (
 from .manager import MedicationManager
 from .websocket import async_register_websocket_api
 
+CARD_MODULE_URL = (
+    f"{PANEL_STATIC_URL}/medication-reminder-card.js?v={FRONTEND_CACHE_KEY}"
+)
+
 SERVICES = (
     "record_intake",
     "record_unplanned_intake",
@@ -56,6 +60,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 )
             ]
         )
+        # Loading the card module as an extra frontend script makes
+        # `custom:medication-reminder-card` available without asking the user
+        # to add a Lovelace resource by hand.
+        frontend.add_extra_js_url(hass, CARD_MODULE_URL)
         domain_data["api_registered"] = True
 
     if not frontend.async_panel_exists(hass, PANEL_URL):

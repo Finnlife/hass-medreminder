@@ -46,10 +46,13 @@ class LocalizationTests(unittest.TestCase):
     def test_every_literal_frontend_translation_key_exists(self) -> None:
         catalog_source = (FRONTEND / "localize.js").read_text(encoding="utf-8")
         english = _frontend_catalog("EN", catalog_source)
-        panel = (FRONTEND / "medication-reminder-panel.js").read_text(encoding="utf-8")
-        used = set(re.findall(r'this\.t\("([a-z0-9_.]+)"', panel))
-        self.assertTrue(used)
-        self.assertEqual(set(), used - set(english))
+        for name in ("medication-reminder-panel.js", "medication-reminder-card.js"):
+            source = (FRONTEND / name).read_text(encoding="utf-8")
+            used = set(
+                re.findall(r'(?:this\.t|translate)\("([a-z0-9_.]+)"', source)
+            )
+            self.assertTrue(used, name)
+            self.assertEqual(set(), used - set(english), name)
 
     def test_home_assistant_translations_have_identical_shapes(self) -> None:
         translations = INTEGRATION / "translations"

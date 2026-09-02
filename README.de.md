@@ -9,7 +9,7 @@ interaktive Erinnerungen und ein nachvollziehbares Soll-/Ist-Protokoll. Nach der
 Einrichtung erscheint **Medications** als eigener Sidebar-Eintrag; der Inhalt wird
 bei deutscher Home-Assistant-Sprache vollständig deutsch dargestellt.
 
-## Implementierte Funktionen (v0.6.0)
+## Implementierte Funktionen (v0.6.1)
 
 - Medikamentenstammdaten mit Hersteller, Barcode/Produktcode, Stärke,
   Darreichungsform, Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen
@@ -41,6 +41,8 @@ bei deutscher Home-Assistant-Sprache vollständig deutsch dargestellt.
   `med7K2QF`, niemals eine URL oder Medikamentendaten
 - Sensoren, Binärsensoren, To-do-Liste, Kalender, Events und Aktionen für
   Dashboards und Automationen
+- Lovelace-Karte zum Erfassen, Vertagen und Auslassen direkt im Dashboard,
+  automatisch registriert ohne manuellen Ressourceneintrag
 - Englisch als Standard, mit deutscher Oberfläche, Entitäten, Einrichtung,
   Aktionen und Benachrichtigungen
 
@@ -114,6 +116,43 @@ Events:
 - `medication_reminder_missed`
 - `medication_reminder_low_stock`
 - `medication_reminder_postponed`
+
+## Lovelace-Karte
+
+Die Integration registriert `custom:medication-reminder-card` automatisch, eine
+Lovelace-Ressource muss also nicht von Hand eingetragen werden. Die Karte lässt
+sich über die Kartenauswahl (**Medication Reminder**) oder in YAML einbinden:
+
+```yaml
+type: custom:medication-reminder-card
+title: Medikamente
+mode: due
+max: 5
+allow_partial: true
+show_snooze: true
+show_skip: true
+show_upcoming: true
+upcoming_count: 3
+show_stock: true
+stock_filter: low
+```
+
+| Option | Standard | Bedeutung |
+| --- | --- | --- |
+| `title` | `Medikamente` | Überschrift; ein leerer String blendet den Kopf aus |
+| `mode` | `due` | `due` zeigt nur fällige Einnahmen, `open` alle offenen |
+| `max` | `5` | Höchstzahl gelisteter Einnahmen, der Rest wird in einer Zeile zusammengefasst |
+| `allow_partial` | `true` | Bearbeitbare Dosisfelder für Teil-Einnahmen; `false` erfasst die volle Restdosis |
+| `show_snooze` | `true` | Buttons zum Vertagen um 30/60/120 Minuten |
+| `show_skip` | `true` | Auslassen-Button |
+| `show_upcoming` | `true` | Liste der nächsten geplanten Einnahmen |
+| `upcoming_count` | `3` | Anzahl der aufgeführten kommenden Einnahmen |
+| `show_stock` | `false` | Bestandsübersicht mit Balken je Medikament |
+| `stock_filter` | `low` | `low` listet nur Medikamente auf oder unter der Warnschwelle, `all` alle |
+
+Die Karte nutzt die WebSocket-API der Integration und zeigt deshalb dieselben
+Packungsempfehlungen wie das Panel und erfasst auch Teil-Dosen. Sie aktualisiert
+sich bei jedem Medication-Reminder-Event und pollt zusätzlich alle 15 Sekunden.
 
 ## Verlauf exportieren
 

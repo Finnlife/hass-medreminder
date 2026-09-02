@@ -11,6 +11,8 @@ PANEL = (
 )
 WEBSOCKET = ROOT / "custom_components/medication_reminder/websocket.py"
 STYLES = ROOT / "custom_components/medication_reminder/frontend/styles.js"
+CARD = ROOT / "custom_components/medication_reminder/frontend/medication-reminder-card.js"
+INIT = ROOT / "custom_components/medication_reminder/__init__.py"
 
 
 class FrontendContractTests(unittest.TestCase):
@@ -133,6 +135,46 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn('confirm(this.t("confirm.import_backup"))', panel)
         self.assertIn('vol.Required("backup"): dict', backend)
         self.assertIn("async_import_backup", backend)
+
+
+class LovelaceCardContractTests(unittest.TestCase):
+    """Protect the custom card registration and its backend calls."""
+
+    def test_card_and_editor_are_registered_once(self) -> None:
+        card = CARD.read_text(encoding="utf-8")
+        self.assertIn('const CARD_TYPE = "medication-reminder-card"', card)
+        self.assertIn("if (!customElements.get(CARD_TYPE))", card)
+        self.assertIn("if (!customElements.get(EDITOR_TYPE))", card)
+        self.assertIn("customElements.define(CARD_TYPE, MedicationReminderCard)", card)
+        self.assertIn("window.customCards = window.customCards || []", card)
+        self.assertIn("type: CARD_TYPE", card)
+
+    def test_card_offers_a_visual_editor_and_stub_config(self) -> None:
+        card = CARD.read_text(encoding="utf-8")
+        self.assertIn("static getConfigElement()", card)
+        self.assertIn("static getStubConfig()", card)
+        self.assertIn("getCardSize()", card)
+        self.assertIn("setConfig(config)", card)
+
+    def test_card_sends_named_domain_ids(self) -> None:
+        card = CARD.read_text(encoding="utf-8")
+        self.assertNotRegex(card, re.compile(r"this\.call\([^\n]+\{\s*id[,}]"))
+        self.assertIn('this.call("record_intake", { occurrence_id: id, doses })', card)
+        self.assertIn("occurrence_id: id, minutes: Number(button.dataset.minutes)", card)
+        self.assertIn('this.call("skip", { occurrence_id: id })', card)
+        self.assertIn('this.call("get_state")', card)
+
+    def test_card_loads_when_it_enters_the_document(self) -> None:
+        card = CARD.read_text(encoding="utf-8")
+        connected = card[card.index("connectedCallback()") : card.index("disconnectedCallback()")]
+        self.assertIn("this.load();", connected)
+        self.assertIn("window.clearInterval(this.poller)", card)
+        self.assertIn("this.unsubscribe()", card)
+
+    def test_card_module_is_served_as_a_frontend_resource(self) -> None:
+        init = INIT.read_text(encoding="utf-8")
+        self.assertIn("medication-reminder-card.js", init)
+        self.assertIn("frontend.add_extra_js_url(hass, CARD_MODULE_URL)", init)
 
 
 if __name__ == "__main__":

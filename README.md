@@ -8,7 +8,7 @@ A local Home Assistant custom integration for medication schedules, stock tracki
 actionable reminders, and an auditable planned-versus-actual intake history. After
 setup, **Medications** appears as a dedicated sidebar panel.
 
-## Implemented features (v0.6.0)
+## Implemented features (v0.6.1)
 
 - Medication records with manufacturer, barcode/product code, strength, dosage
   form, stock unit, warning threshold, and notes; creating one immediately opens
@@ -38,6 +38,8 @@ setup, **Medications** appears as a dedicated sidebar panel.
   such as `med7K2QF`, never a URL or medication data
 - Sensors, binary sensors, a to-do list, a calendar, events, and actions for
   dashboards and automations
+- A Lovelace card that records, snoozes and skips due intakes straight from a
+  dashboard, registered automatically without a manual resource entry
 - English by default, with German UI, entity, setup, action, and notification translations
 
 ## Installation
@@ -108,6 +110,43 @@ Events:
 - `medication_reminder_missed`
 - `medication_reminder_low_stock`
 - `medication_reminder_postponed`
+
+## Lovelace card
+
+The integration registers `custom:medication-reminder-card` automatically, so no
+Lovelace resource has to be added by hand. Add it from the card picker
+(**Medication Reminder**) or in YAML:
+
+```yaml
+type: custom:medication-reminder-card
+title: Medication
+mode: due
+max: 5
+allow_partial: true
+show_snooze: true
+show_skip: true
+show_upcoming: true
+upcoming_count: 3
+show_stock: true
+stock_filter: low
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `title` | `Medication` | Card heading; an empty string hides the header |
+| `mode` | `due` | `due` shows only intakes that are due, `open` shows every open intake |
+| `max` | `5` | Maximum number of intakes listed, the rest is summarised in one line |
+| `allow_partial` | `true` | Editable dose fields for partial intakes; `false` records the full remaining dose |
+| `show_snooze` | `true` | 30/60/120-minute snooze buttons |
+| `show_skip` | `true` | Skip button |
+| `show_upcoming` | `true` | List of the next scheduled intakes |
+| `upcoming_count` | `3` | How many upcoming intakes are listed |
+| `show_stock` | `false` | Stock overview with a bar per medication |
+| `stock_filter` | `low` | `low` lists only medications at or below their threshold, `all` lists every one |
+
+The card uses the integration's WebSocket API, so it shows the same package
+recommendations as the panel and records partial doses. It refreshes on every
+Medication Reminder event and additionally polls every 15 seconds.
 
 ## History export
 
