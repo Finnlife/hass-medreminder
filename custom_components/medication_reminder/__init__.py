@@ -9,7 +9,13 @@ import voluptuous as vol
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+    callback,
+)
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.device_registry import DeviceEntry
@@ -24,6 +30,7 @@ from .const import (
     PLATFORMS,
 )
 from .manager import MedicationManager
+from .models import resolve_intake_time
 from .websocket import async_register_websocket_api
 
 CARD_MODULE_URL = (
@@ -33,6 +40,8 @@ CARD_MODULE_URL = (
 SERVICES = (
     "record_intake",
     "record_unplanned_intake",
+    "schedule_intake",
+    "cancel_intake",
     "skip_intake",
     "snooze",
     "postpone_interval",
@@ -171,6 +180,36 @@ def _register_services(hass: HomeAssistant) -> None:
             )
         )
 
+    async def schedule_intake(call: ServiceCall) -> ServiceResponse:
+        occurrence = await _guard(
+            _active_manager(hass).async_schedule_intake(
+                call.data["items"],
+                resolve_intake_time(call.data, dt_util.now()),
+                title=call.data.get("title", ""),
+                reason=call.data.get("reason", ""),
+                reference=call.data.get("reference", ""),
+                reminder={
+                    "notify_services": call.data.get("notify_services", []),
+                    "scripts": call.data.get("scripts", []),
+                    "repeat_minutes": call.data["repeat_minutes"],
+                    "reminder_window_minutes": call.data["reminder_window_minutes"],
+                    "auto_miss_after_minutes": call.data["auto_miss_after_minutes"],
+                },
+            )
+        )
+        return {
+            "occurrence_id": occurrence["id"],
+            "scheduled_at": occurrence["scheduled_at"],
+            "title": occurrence["regimen_name"],
+        }
+
+    async def cancel_intake(call: ServiceCall) -> ServiceResponse:
+        return await _guard(
+            _active_manager(hass).async_cancel_intake(
+                call.data.get("occurrence_id", ""), call.data.get("reference", "")
+            )
+        )
+
     async def postpone_interval(call: ServiceCall) -> None:
         await _guard(
             _active_manager(hass).async_postpone_interval(call.data["occurrence_id"])
@@ -235,6 +274,65 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Optional("note", default=""): cv.string,
             }
         ),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "schedule_intake",
+        schedule_intake,
+        schema=vol.Schema(
+            {
+                vol.Required("items"): vol.All(
+                    cv.ensure_list,
+                    vol.Length(min=1),
+                    [
+                        {
+                            vol.Optional("medication_id"): cv.string,
+                            vol.Optional("medication"): cv.string,
+                            vol.Required("dose"): vol.All(
+                                vol.Coerce(float), vol.Range(min=0.001)
+                            ),
+                        }
+                    ],
+                ),
+                vol.Exclusive("scheduled_at", "intake_time"): cv.datetime,
+                vol.Exclusive("time", "intake_time"): cv.time,
+                vol.Exclusive("in_minutes", "intake_time"): vol.All(
+                    vol.Coerce(int), vol.Range(min=0, max=525600)
+                ),
+                vol.Optional("date"): cv.date,
+                vol.Optional("title", default=""): cv.string,
+                vol.Optional("reason", default=""): cv.string,
+                vol.Optional("reference", default=""): cv.string,
+                vol.Optional("notify_services", default=list): vol.All(
+                    cv.ensure_list, [cv.string]
+                ),
+                vol.Optional("scripts", default=list): vol.All(
+                    cv.ensure_list, [cv.string]
+                ),
+                vol.Optional("repeat_minutes", default=30): vol.All(
+                    vol.Coerce(int), vol.Range(min=5, max=1440)
+                ),
+                vol.Optional("reminder_window_minutes", default=180): vol.All(
+                    vol.Coerce(int), vol.Range(min=0, max=10080)
+                ),
+                vol.Optional("auto_miss_after_minutes", default=0): vol.All(
+                    vol.Coerce(int), vol.Range(min=0, max=43200)
+                ),
+            }
+        ),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "cancel_intake",
+        cancel_intake,
+        schema=vol.Schema(
+            {
+                vol.Exclusive("occurrence_id", "intake_target"): cv.string,
+                vol.Exclusive("reference", "intake_target"): cv.string,
+            }
+        ),
+        supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(
         DOMAIN, "postpone_interval", postpone_interval, schema=occurrence_schema

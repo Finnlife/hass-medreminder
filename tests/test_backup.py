@@ -81,6 +81,9 @@ class BackupTests(unittest.TestCase):
                     "regimen_id": "r",
                     "regimen_name": "Lunch",
                     "unplanned": False,
+                    "ad_hoc": False,
+                    "reason": "",
+                    "reference": "",
                     "scheduled_at": "2026-08-31T13:00:00+02:00",
                     "status": "taken",
                     "items": [

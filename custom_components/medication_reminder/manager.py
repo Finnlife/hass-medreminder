@@ -16,8 +16,10 @@ from homeassistant.util import dt as dt_util
 from .backup import build_backup_download, prepare_backup_import
 from .const import (
     ADHERENCE_WINDOW_DAYS,
+    AD_HOC_MAX_LEAD_DAYS,
     CATCHUP_DAYS,
     CLOSED_STATUSES,
+    DEFAULT_REPEAT_MINUTES,
     DOMAIN,
     EVENT_DUE,
     EVENT_LOW_STOCK,
@@ -34,11 +36,13 @@ from .history_export import build_history_export
 from .localization import translate
 from .migrations import ensure_current_data
 from .models import (
+    ad_hoc_occurrence,
     empty_data,
     new_id,
     normalize_medication,
     normalize_package,
     normalize_regimen,
+    normalize_reminder,
     occurrence_for,
     public_data,
 )
@@ -186,6 +190,28 @@ class MedicationManager:
                         "instructions": regimen.get("instructions", ""),
                     }
                 )
+        for occurrence in self.data["occurrences"]:
+            if not occurrence.get("ad_hoc") or occurrence["status"] not in OPEN_STATUSES:
+                continue
+            moment = _parse_optional_datetime(occurrence.get("scheduled_at"))
+            if moment is None:
+                continue
+            moment = dt_util.as_local(moment)
+            if not start <= moment <= end:
+                continue
+            events.append(
+                {
+                    "regimen_id": occurrence["id"],
+                    "summary": occurrence.get("regimen_name") or "",
+                    "start": moment,
+                    "description": ", ".join(
+                        f"{item['planned_dose']:g} × "
+                        f"{self._medication_name(item['medication_id'])}"
+                        for item in occurrence["items"]
+                    ),
+                    "instructions": occurrence.get("reason", ""),
+                }
+            )
         return sorted(events, key=lambda event: event["start"])
 
     def daily_consumption(self, medication_id: str) -> float:
@@ -570,6 +596,133 @@ class MedicationManager:
             self._fire_taken_event(occurrence, complete)
             return public_data(occurrence)
 
+    async def async_schedule_intake(
+        self,
+        items: list[dict[str, Any]],
+        scheduled_at: datetime,
+        *,
+        title: str = "",
+        reason: str = "",
+        reference: str = "",
+        reminder: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Plan a single intake that does not belong to a repeating plan.
+
+        Automations use this to react to something that happened, for example a
+        workout, and it is idempotent per `reference` so a trigger that fires
+        twice reschedules the same ticket instead of creating a second one.
+        """
+        async with self._lock:
+            moment = dt_util.as_local(scheduled_at)
+            if moment > dt_util.now() + timedelta(days=AD_HOC_MAX_LEAD_DAYS):
+                raise ValueError("Intake is scheduled too far in the future")
+            resolved: list[dict[str, Any]] = []
+            seen: set[str] = set()
+            for raw in items:
+                medication = self._resolve_medication(raw)
+                if medication["id"] in seen:
+                    raise ValueError("Medication occurs more than once")
+                seen.add(medication["id"])
+                resolved.append(
+                    {"medication_id": medication["id"], "dose": raw.get("dose")}
+                )
+            if not resolved:
+                raise ValueError("At least one medication is required")
+            settings = normalize_reminder(reminder or {})
+            occurrence = ad_hoc_occurrence(
+                title or self._default_ad_hoc_title(resolved, reason),
+                moment,
+                resolved,
+                settings,
+                reason=reason,
+                reference=reference,
+            )
+            existing = self._find_ad_hoc_reference(occurrence["reference"])
+            if existing is not None:
+                # Keep the identity of the ticket so notifications and any
+                # automation holding its id stay valid.
+                occurrence["id"] = existing["id"]
+                occurrence["scan_code"] = existing.get("scan_code")
+                self.data["occurrences"][
+                    self.data["occurrences"].index(existing)
+                ] = occurrence
+            else:
+                self.data["occurrences"].append(occurrence)
+            if not occurrence.get("scan_code"):
+                occurrence["scan_code"] = self._new_scan_code(
+                    f"occurrences:{occurrence['id']}"
+                )
+            await self._changed()
+            return public_data(occurrence)
+
+    async def async_cancel_intake(
+        self, occurrence_id: str = "", reference: str = ""
+    ) -> dict[str, Any]:
+        """Remove an unresolved one-off intake without recording history."""
+        async with self._lock:
+            occurrence = (
+                self._find("occurrences", occurrence_id)
+                if occurrence_id
+                else self._find_ad_hoc_reference(reference)
+            )
+            if occurrence is None:
+                raise ValueError("Unknown occurrence")
+            if not occurrence.get("ad_hoc"):
+                raise ValueError("Only one-off intakes can be cancelled")
+            if occurrence["status"] not in OPEN_STATUSES:
+                raise ValueError("Only open intakes can be cancelled")
+            if any(item["taken_dose"] for item in occurrence["items"]):
+                raise ValueError("A partially recorded intake cannot be cancelled")
+            self.data["occurrences"].remove(occurrence)
+            await self._changed()
+            return {"occurrence_id": occurrence["id"]}
+
+    def _find_ad_hoc_reference(self, reference: str) -> dict[str, Any] | None:
+        """Return the open one-off ticket carrying a deduplication reference."""
+        if not reference:
+            return None
+        return next(
+            (
+                occurrence
+                for occurrence in self.data["occurrences"]
+                if occurrence.get("ad_hoc")
+                and occurrence.get("reference") == reference
+                and occurrence["status"] in OPEN_STATUSES
+            ),
+            None,
+        )
+
+    def _resolve_medication(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Look a medication up by id, exact name or printed scan code."""
+        identifier = str(
+            raw.get("medication_id") or raw.get("medication") or ""
+        ).strip()
+        if not identifier:
+            raise ValueError("Unknown medication")
+        direct = self._find("medications", identifier)
+        if direct is not None:
+            return direct
+        lowered = identifier.casefold()
+        matches = [
+            medication
+            for medication in self.data["medications"]
+            if medication["name"].casefold() == lowered
+            or str(medication.get("scan_code", "")).casefold() == lowered
+        ]
+        if len(matches) > 1:
+            raise ValueError("Medication name is ambiguous")
+        if not matches:
+            raise ValueError("Unknown medication")
+        return matches[0]
+
+    def _default_ad_hoc_title(
+        self, items: list[dict[str, Any]], reason: str
+    ) -> str:
+        if reason:
+            return reason
+        names = [self._medication_name(item["medication_id"]) for item in items]
+        return ", ".join(names)
+
     async def async_snooze(self, occurrence_id: str, until: datetime) -> dict[str, Any]:
         """Snooze an unresolved occurrence until a future point."""
         if until <= dt_util.now():
@@ -883,6 +1036,20 @@ class MedicationManager:
                 created = True
         return created
 
+    def _reminder_for(self, occurrence: dict[str, Any]) -> dict[str, Any] | None:
+        """Return the effective reminder settings of one open occurrence.
+
+        A scheduled ticket inherits them from its plan, a one-off ticket carries
+        its own copy, and anything else must not produce reminders at all.
+        """
+        own = occurrence.get("reminder")
+        if isinstance(own, dict):
+            return own
+        regimen = self._find("regimens", occurrence.get("regimen_id"))
+        if regimen is None or not regimen.get("active", True):
+            return None
+        return regimen
+
     async def _process_open_occurrences(self, now: datetime) -> bool:
         changed = False
         for occurrence in self.data["occurrences"]:
@@ -894,10 +1061,11 @@ class MedicationManager:
             due = dt_util.as_local(due)
             if due > now:
                 continue
-            regimen = self._find("regimens", occurrence.get("regimen_id"))
-            if regimen is None:
+            settings = self._reminder_for(occurrence)
+            if settings is None:
                 continue
-            auto_miss = int(regimen.get("auto_miss_after_minutes", 0) or 0)
+            title = occurrence.get("regimen_name") or ""
+            auto_miss = _setting(settings, "auto_miss_after_minutes")
             if auto_miss and now >= due + timedelta(minutes=auto_miss):
                 occurrence["status"] = "missed"
                 occurrence["taken_at"] = None
@@ -907,27 +1075,29 @@ class MedicationManager:
                     EVENT_MISSED,
                     {
                         "occurrence_id": occurrence["id"],
-                        "regimen_id": regimen["id"],
-                        "regimen_name": regimen["name"],
+                        "regimen_id": occurrence.get("regimen_id"),
+                        "regimen_name": title,
+                        "ad_hoc": occurrence.get("ad_hoc", False),
+                        "reason": occurrence.get("reason", ""),
                         "scheduled_at": occurrence["scheduled_at"],
                     },
                 )
-                continue
-            if not regimen.get("active", True):
                 continue
             snoozed = _parse_optional_datetime(occurrence.get("snoozed_until"))
             snoozed = dt_util.as_local(snoozed) if snoozed else None
             if snoozed and snoozed > now:
                 continue
-            window = int(regimen.get("reminder_window_minutes", 0) or 0)
+            window = _setting(settings, "reminder_window_minutes")
             if snoozed is None and window and now > due + timedelta(minutes=window):
                 continue
             last = _parse_optional_datetime(occurrence.get("last_reminded_at"))
-            repeat = timedelta(minutes=int(regimen["repeat_minutes"]))
+            repeat = timedelta(
+                minutes=_setting(settings, "repeat_minutes", DEFAULT_REPEAT_MINUTES)
+            )
             # An expired snooze is an explicit user request and always fires.
             if snoozed is None and last and dt_util.as_local(last) + repeat > now:
                 continue
-            await self._async_notify(regimen, occurrence)
+            await self._async_notify(settings, title, occurrence)
             occurrence["last_reminded_at"] = now.isoformat()
             occurrence["snoozed_until"] = None
             occurrence["reminders_sent"] = int(occurrence.get("reminders_sent", 0)) + 1
@@ -936,8 +1106,10 @@ class MedicationManager:
                 EVENT_DUE,
                 {
                     "occurrence_id": occurrence["id"],
-                    "regimen_id": regimen["id"],
-                    "regimen_name": regimen["name"],
+                    "regimen_id": occurrence.get("regimen_id"),
+                    "regimen_name": title,
+                    "ad_hoc": occurrence.get("ad_hoc", False),
+                    "reason": occurrence.get("reason", ""),
                     "scheduled_at": occurrence["scheduled_at"],
                     "reminders_sent": occurrence["reminders_sent"],
                 },
@@ -945,9 +1117,11 @@ class MedicationManager:
         return changed
 
     async def _async_notify(
-        self, regimen: dict[str, Any], occurrence: dict[str, Any]
+        self, settings: dict[str, Any], title: str, occurrence: dict[str, Any]
     ) -> None:
-        if not regimen["notify_services"] and not regimen["scripts"]:
+        targets = [str(value) for value in settings.get("notify_services") or []]
+        scripts = [str(value) for value in settings.get("scripts") or []]
+        if not targets and not scripts:
             return
         medications = {item["id"]: item for item in self.data["medications"]}
         lines: list[str] = []
@@ -996,9 +1170,13 @@ class MedicationManager:
             lines.append(line)
         occurrence_id = occurrence["id"]
         path = f"/{DOMAIN}?occurrence={occurrence_id}"
+        reason = str(occurrence.get("reason") or "")
+        message = f"{title}: " + ", ".join(lines) if title else ", ".join(lines)
+        if reason:
+            message += f" ({reason})"
         service_data = {
             "title": translate(self.hass, "notification.title"),
-            "message": f"{regimen['name']}: " + ", ".join(lines),
+            "message": message,
             "data": {
                 "tag": f"{DOMAIN}_{occurrence_id}",
                 "url": path,
@@ -1019,7 +1197,7 @@ class MedicationManager:
                 ],
             },
         }
-        for target in regimen["notify_services"]:
+        for target in targets:
             domain, separator, service = target.partition(".")
             if not separator or not self.hass.services.has_service(domain, service):
                 _LOGGER.warning("Notification service %s is unavailable", target)
@@ -1030,7 +1208,7 @@ class MedicationManager:
                 )
             except Exception:  # Home Assistant logs provider-specific details.
                 _LOGGER.exception("Could not send medication reminder via %s", target)
-        for entity_id in regimen["scripts"]:
+        for entity_id in scripts:
             try:
                 await self.hass.services.async_call(
                     "script",
@@ -1123,6 +1301,15 @@ class MedicationManager:
     def _new_scan_code(self, seed: str) -> str:
         """Allocate a compact code without changing any existing assignment."""
         return generate_scan_code(seed, used_scan_codes(self.data))
+
+
+def _setting(settings: dict[str, Any], field: str, default: int = 0) -> int:
+    """Read one reminder limit from possibly restored, untrusted data."""
+    try:
+        value = int(settings.get(field, default) or 0)
+    except (TypeError, ValueError):
+        return default
+    return value if value >= 0 else default
 
 
 def _is_due(occurrence: dict[str, Any], now: datetime) -> bool:

@@ -164,6 +164,78 @@
           "description": "ID of the open intake occurrence."
         }
       }
+    },
+    "schedule_intake": {
+      "name": "Schedule a one-off intake",
+      "description": "Plans a single intake that does not belong to a repeating plan, for example magnesium in the evening after a workout.",
+      "fields": {
+        "items": {
+          "name": "Medications and doses",
+          "description": "List of objects with a dose and either medication_id or medication, which accepts the medication name or its scan code."
+        },
+        "scheduled_at": {
+          "name": "Date and time",
+          "description": "Absolute point in time for the intake."
+        },
+        "time": {
+          "name": "Time",
+          "description": "Clock time for the intake. Without a date it means today, or tomorrow when that time has already passed."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Day the time refers to."
+        },
+        "in_minutes": {
+          "name": "In minutes",
+          "description": "Minutes from now until the intake is due."
+        },
+        "title": {
+          "name": "Title",
+          "description": "Heading of the ticket; defaults to the reason."
+        },
+        "reason": {
+          "name": "Reason",
+          "description": "Why this intake was planned, shown in the app, the reminder and the history export."
+        },
+        "reference": {
+          "name": "Reference",
+          "description": "Deduplication key. Calling again with the same reference reschedules the existing open intake instead of adding a second."
+        },
+        "notify_services": {
+          "name": "Notification services",
+          "description": "notify.* services used for this intake."
+        },
+        "scripts": {
+          "name": "Scripts",
+          "description": "Scripts started with each reminder."
+        },
+        "repeat_minutes": {
+          "name": "Repeat every",
+          "description": "Minutes between two reminders."
+        },
+        "reminder_window_minutes": {
+          "name": "Stop reminding after",
+          "description": "Minutes after the due time when reminders stop. 0 keeps reminding until the intake is resolved."
+        },
+        "auto_miss_after_minutes": {
+          "name": "Mark as missed after",
+          "description": "Minutes after which an untouched intake is marked as missed. 0 keeps it open."
+        }
+      }
+    },
+    "cancel_intake": {
+      "name": "Cancel a one-off intake",
+      "description": "Removes a planned one-off intake that has not been recorded yet, without writing it to the history.",
+      "fields": {
+        "occurrence_id": {
+          "name": "Occurrence ID",
+          "description": "ID of the one-off intake."
+        },
+        "reference": {
+          "name": "Reference",
+          "description": "Reference the intake was scheduled with."
+        }
+      }
     }
   }
 }

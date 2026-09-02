@@ -125,6 +125,8 @@ const EN = Object.freeze({
   "ticket.unplanned": "Unplanned intake",
   "ticket.orphan_plan": "Plan no longer exists",
   "ticket.overdue": "Overdue",
+  "ticket.ad_hoc": "One-off",
+  "ticket.reason": "Reason: {reason}",
 
   "medications.title": "Medications",
   "medications.subtitle": "Master data, packages and derived stock.",
@@ -488,6 +490,8 @@ const DE = Object.freeze({
   "ticket.unplanned": "Ungeplante Einnahme",
   "ticket.orphan_plan": "Plan existiert nicht mehr",
   "ticket.overdue": "Überfällig",
+  "ticket.ad_hoc": "Einmalig",
+  "ticket.reason": "Grund: {reason}",
 
   "medications.title": "Medikamente",
   "medications.subtitle": "Stammdaten, Packungen und daraus berechneter Bestand.",

@@ -164,6 +164,78 @@
           "description": "ID der offenen Einnahme."
         }
       }
+    },
+    "schedule_intake": {
+      "name": "Einmalige Einnahme planen",
+      "description": "Plant eine einzelne Einnahme außerhalb eines wiederkehrenden Plans, zum Beispiel Magnesium am Abend nach dem Sport.",
+      "fields": {
+        "items": {
+          "name": "Medikamente und Dosen",
+          "description": "Liste aus Objekten mit dose und entweder medication_id oder medication; medication akzeptiert Name oder Scan-Code."
+        },
+        "scheduled_at": {
+          "name": "Datum und Uhrzeit",
+          "description": "Absoluter Zeitpunkt der Einnahme."
+        },
+        "time": {
+          "name": "Uhrzeit",
+          "description": "Uhrzeit der Einnahme. Ohne Datum heißt das heute, oder morgen, wenn die Zeit bereits vorbei ist."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "Tag, auf den sich die Uhrzeit bezieht."
+        },
+        "in_minutes": {
+          "name": "In Minuten",
+          "description": "Minuten ab jetzt bis zur Fälligkeit."
+        },
+        "title": {
+          "name": "Titel",
+          "description": "Überschrift des Tickets; standardmäßig der Grund."
+        },
+        "reason": {
+          "name": "Grund",
+          "description": "Warum diese Einnahme geplant wurde; erscheint in der App, in der Erinnerung und im Verlaufsexport."
+        },
+        "reference": {
+          "name": "Referenz",
+          "description": "Schlüssel gegen Dopplungen. Ein erneuter Aufruf mit derselben Referenz verschiebt die bestehende offene Einnahme, statt eine zweite anzulegen."
+        },
+        "notify_services": {
+          "name": "Benachrichtigungsdienste",
+          "description": "notify.*-Dienste für diese Einnahme."
+        },
+        "scripts": {
+          "name": "Skripte",
+          "description": "Skripte, die bei jeder Erinnerung starten."
+        },
+        "repeat_minutes": {
+          "name": "Wiederholen alle",
+          "description": "Minuten zwischen zwei Erinnerungen."
+        },
+        "reminder_window_minutes": {
+          "name": "Erinnern beenden nach",
+          "description": "Minuten nach Fälligkeit, ab denen nicht mehr erinnert wird. 0 erinnert, bis die Einnahme erledigt ist."
+        },
+        "auto_miss_after_minutes": {
+          "name": "Als versäumt markieren nach",
+          "description": "Minuten, nach denen eine unberührte Einnahme als versäumt gilt. 0 lässt sie offen."
+        }
+      }
+    },
+    "cancel_intake": {
+      "name": "Einmalige Einnahme abbrechen",
+      "description": "Entfernt eine geplante einmalige Einnahme, die noch nicht erfasst wurde, ohne sie in den Verlauf zu schreiben.",
+      "fields": {
+        "occurrence_id": {
+          "name": "Einnahme-ID",
+          "description": "ID der einmaligen Einnahme."
+        },
+        "reference": {
+          "name": "Referenz",
+          "description": "Referenz, mit der die Einnahme geplant wurde."
+        }
+      }
     }
   }
 }

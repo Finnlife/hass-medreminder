@@ -14,6 +14,7 @@ CSV_FIELDS = (
     "occurrence_id",
     "status",
     "intake_type",
+    "reason",
     "regimen_id",
     "regimen_name",
     "scheduled_at",
@@ -116,7 +117,8 @@ def _export_occurrence(
     return {
         "occurrence_id": occurrence.get("id"),
         "status": occurrence.get("status"),
-        "intake_type": "unplanned" if occurrence.get("unplanned") else "scheduled",
+        "intake_type": _intake_type(occurrence),
+        "reason": occurrence.get("reason", ""),
         "regimen_id": regimen_id,
         "regimen_name": regimen_name,
         "scheduled_at": scheduled_at,
@@ -127,6 +129,13 @@ def _export_occurrence(
             _export_item(item, medications) for item in occurrence.get("items", [])
         ],
     }
+
+
+def _intake_type(occurrence: dict[str, Any]) -> str:
+    """Classify an occurrence for the export."""
+    if occurrence.get("unplanned"):
+        return "unplanned"
+    return "ad_hoc" if occurrence.get("ad_hoc") else "scheduled"
 
 
 def _difference_minutes(start: Any, end: Any) -> int | None:

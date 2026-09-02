@@ -55,6 +55,18 @@ def ensure_current_data(raw: dict[str, Any] | None) -> dict[str, Any]:
         occurrence.setdefault("unplanned", False)
         occurrence.setdefault("regimen_name", None)
         occurrence.setdefault("reminders_sent", 0)
+        occurrence.setdefault("ad_hoc", False)
+        occurrence.setdefault("reason", "")
+        occurrence.setdefault("reference", "")
+        if occurrence["ad_hoc"] and not isinstance(occurrence.get("reminder"), dict):
+            # A one-off ticket without settings would never remind again.
+            occurrence["reminder"] = {
+                "notify_services": [],
+                "scripts": [],
+                "repeat_minutes": DEFAULT_REPEAT_MINUTES,
+                "reminder_window_minutes": DEFAULT_REMINDER_WINDOW_MINUTES,
+                "auto_miss_after_minutes": DEFAULT_AUTO_MISS_MINUTES,
+            }
         if occurrence.get("status") not in ALL_STATUSES:
             occurrence["status"] = "pending"
         for item in occurrence.get("items", []):

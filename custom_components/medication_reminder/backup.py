@@ -127,6 +127,9 @@ def _validate_data(data: dict[str, Any]) -> None:
             raise ValueError("Occurrence has an unsupported status")
         _timestamp(occurrence.get("scheduled_at"), "occurrence scheduled time")
         _optional_timestamp(occurrence.get("taken_at"), "occurrence taken time")
+        reminder = occurrence.get("reminder")
+        if reminder is not None and not isinstance(reminder, dict):
+            raise ValueError("Intake reminder settings must be an object")
         _optional_timestamp(occurrence.get("snoozed_until"), "occurrence snooze time")
         regimen_id = occurrence.get("regimen_id")
         if (

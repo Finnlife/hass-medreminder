@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from copy import deepcopy
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -118,15 +118,34 @@ def normalize_regimen(
     if not items:
         raise ValueError("At least one medication is required")
     schedule = normalize_schedule(raw.get("schedule", {}))
+    return {
+        "id": existing_id or str(raw.get("id") or new_id()),
+        "name": name,
+        "items": items,
+        "schedule": schedule,
+        **normalize_reminder(raw),
+        "active": bool(raw.get("active", True)),
+        "instructions": _text(
+            raw.get("instructions"), "instructions", MAX_NOTES_LENGTH
+        ),
+    }
+
+
+def normalize_reminder(raw: dict[str, Any]) -> dict[str, Any]:
+    """Validate the reminder settings shared by plans and one-off intakes."""
     targets = sorted(
         {
             str(value).strip()
-            for value in raw.get("notify_services", [])
+            for value in raw.get("notify_services") or []
             if str(value).strip()
         }
     )
     scripts = sorted(
-        {str(value).strip() for value in raw.get("scripts", []) if str(value).strip()}
+        {
+            str(value).strip()
+            for value in raw.get("scripts") or []
+            if str(value).strip()
+        }
     )
     repeat_minutes = _bounded_int(
         raw.get("repeat_minutes", DEFAULT_REPEAT_MINUTES), "repeat_minutes", 5, 1440
@@ -146,19 +165,11 @@ def normalize_regimen(
     if 0 < auto_miss < repeat_minutes:
         raise ValueError("auto_miss_after_minutes must not be below repeat_minutes")
     return {
-        "id": existing_id or str(raw.get("id") or new_id()),
-        "name": name,
-        "items": items,
-        "schedule": schedule,
         "notify_services": targets,
         "scripts": scripts,
         "repeat_minutes": repeat_minutes,
         "reminder_window_minutes": reminder_window,
         "auto_miss_after_minutes": auto_miss,
-        "active": bool(raw.get("active", True)),
-        "instructions": _text(
-            raw.get("instructions"), "instructions", MAX_NOTES_LENGTH
-        ),
     }
 
 
@@ -179,6 +190,43 @@ def occurrence_for(regimen: dict[str, Any], scheduled_at: datetime) -> dict[str,
                 "allocations": [],
             }
             for item in regimen["items"]
+        ],
+        "taken_at": None,
+        "snoozed_until": None,
+        "last_reminded_at": None,
+        "reminders_sent": 0,
+        "completed_by": None,
+    }
+
+
+def ad_hoc_occurrence(
+    title: str,
+    scheduled_at: datetime,
+    items: list[dict[str, Any]],
+    reminder: dict[str, Any],
+    reason: str = "",
+    reference: str = "",
+) -> dict[str, Any]:
+    """Create a one-off intake ticket that carries its own reminder settings."""
+    return {
+        "id": new_id(),
+        "regimen_id": None,
+        "regimen_name": _text(title, "title") or "Intake",
+        "unplanned": False,
+        "ad_hoc": True,
+        "reason": _text(reason, "reason", MAX_NOTES_LENGTH),
+        "reference": _text(reference, "reference"),
+        "reminder": reminder,
+        "scheduled_at": scheduled_at.isoformat(),
+        "status": "pending",
+        "items": [
+            {
+                "medication_id": item["medication_id"],
+                "planned_dose": _positive_number(item["dose"], "dose"),
+                "taken_dose": 0,
+                "allocations": [],
+            }
+            for item in items
         ],
         "taken_at": None,
         "snoozed_until": None,
@@ -260,3 +308,32 @@ def _positive_number(value: Any, field: str) -> float:
     if number <= 0:
         raise ValueError(f"{field} must be greater than zero")
     return number
+
+
+def resolve_intake_time(data: dict[str, Any], now: datetime) -> datetime:
+    """Turn the mutually exclusive time options of a one-off intake into a datetime.
+
+    `scheduled_at` is absolute, `in_minutes` is relative to now, and `time` means
+    the next occurrence of that clock time unless `date` pins it to a day.
+    """
+    scheduled_at = data.get("scheduled_at")
+    if isinstance(scheduled_at, datetime):
+        if scheduled_at.tzinfo is None:
+            scheduled_at = scheduled_at.replace(tzinfo=now.tzinfo)
+        return scheduled_at
+    if data.get("in_minutes") is not None:
+        return now + timedelta(minutes=int(data["in_minutes"]))
+    clock = data.get("time")
+    if isinstance(clock, str):
+        clock = parse_time(clock)
+    if isinstance(clock, time):
+        day = data.get("date")
+        if isinstance(day, str):
+            day = date.fromisoformat(day)
+        moment = datetime.combine(day or now.date(), clock, tzinfo=now.tzinfo)
+        if day is None and moment <= now:
+            moment = datetime.combine(
+                now.date() + timedelta(days=1), clock, tzinfo=now.tzinfo
+            )
+        return moment
+    return now

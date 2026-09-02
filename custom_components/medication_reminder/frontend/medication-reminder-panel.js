@@ -512,6 +512,7 @@ class MedicationReminderPanel extends HTMLElement {
         <div>
           <div class="badges">
             <span class="badge ${item.status}">${this.status(item.status)}</span>
+            ${item.ad_hoc ? `<span class="badge partial">${this.t("ticket.ad_hoc")}</span>` : ""}
             ${overdue ? `<span class="badge missed">${this.t("ticket.overdue")}</span>` : ""}
             ${snoozed ? `<span class="badge snoozed">${this.t("ticket.snoozed_until", { time: this.formatTime(item.snoozed_until) })}</span>` : ""}
           </div>
@@ -520,6 +521,7 @@ class MedicationReminderPanel extends HTMLElement {
         </div>
         <div class="ticket-time">${this.formatTime(item.scheduled_at)}</div>
       </div>
+      ${item.reason ? `<p class="hint"><ha-icon icon="mdi:lightbulb-on-outline"></ha-icon>${this.t("ticket.reason", { reason: esc(item.reason) })}</p>` : ""}
       ${regimen?.instructions ? `<p class="hint"><ha-icon icon="mdi:information-outline"></ha-icon>${esc(regimen.instructions)}</p>` : ""}
       <div class="doses">${item.items.map((dose) => this.doseLine(dose)).join("")}</div>
       <div class="ticket-actions">
@@ -801,7 +803,7 @@ class MedicationReminderPanel extends HTMLElement {
     }).join("");
     return `<tr>
       <td><span class="badge ${item.status}">${this.status(item.status)}</span></td>
-      <td><strong>${esc(name)}</strong>${item.note ? `<small class="muted">${esc(item.note)}</small>` : ""}</td>
+      <td><strong>${esc(name)}</strong>${item.note || item.reason ? `<small class="muted">${esc(item.note || item.reason)}</small>` : ""}</td>
       <td>${item.unplanned ? "–" : this.formatDateTime(item.scheduled_at)}</td>
       <td>${item.status === "taken" ? this.formatDateTime(item.taken_at) : "–"}</td>
       <td>${deviation === null || item.unplanned ? "–" : `${deviation > 0 ? "+" : ""}${deviation} ${this.t("common.minutes_short")}`}</td>

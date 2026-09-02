@@ -82,6 +82,7 @@ button { cursor: pointer; }
 .badge.snoozed { background: color-mix(in srgb, var(--mr-info) 14%, transparent); color: var(--mr-info); }
 .badge.overdue { background: color-mix(in srgb, var(--mr-danger) 16%, transparent); color: var(--mr-danger); }
 
+.reason { font-size: 12px; color: var(--mr-muted); margin-top: 6px; }
 .doses { display: grid; gap: 4px; margin: 8px 0; }
 .dose { display: flex; align-items: center; gap: 10px; }
 .dose input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--mr-accent); flex: 0 0 auto; }
@@ -366,6 +367,7 @@ class MedicationReminderCard extends HTMLElement {
         <div>
           <div class="chips">
             <span class="badge ${item.status}">${this.t(`status.${item.status}`)}</span>
+            ${item.ad_hoc ? `<span class="badge partial">${this.t("ticket.ad_hoc")}</span>` : ""}
             ${overdue ? `<span class="badge overdue">${this.t("ticket.overdue")}</span>` : ""}
             ${snoozed ? `<span class="badge snoozed">${this.t("ticket.snoozed_until", { time: this.formatTime(item.snoozed_until) })}</span>` : ""}
           </div>
@@ -373,6 +375,7 @@ class MedicationReminderCard extends HTMLElement {
         </div>
         <span class="when">${this.formatTime(item.scheduled_at)} · ${this.relative(item.scheduled_at)}</span>
       </div>
+      ${item.reason ? `<div class="reason">${this.t("ticket.reason", { reason: esc(item.reason) })}</div>` : ""}
       <div class="doses">${item.items.map((dose) => this.renderDose(dose)).join("")}</div>
       <div class="actions">
         <button class="record" data-action="record" data-id="${item.id}">

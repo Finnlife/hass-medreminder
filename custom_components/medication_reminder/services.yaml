@@ -72,3 +72,68 @@ skip_intake:
       required: true
       selector:
         text:
+schedule_intake:
+  fields:
+    items:
+      required: true
+      selector:
+        object:
+    scheduled_at:
+      selector:
+        datetime:
+    time:
+      selector:
+        time:
+    date:
+      selector:
+        date:
+    in_minutes:
+      selector:
+        number:
+          min: 0
+          max: 525600
+          mode: box
+    title:
+      selector:
+        text:
+    reason:
+      selector:
+        text:
+    reference:
+      selector:
+        text:
+    notify_services:
+      selector:
+        object:
+    scripts:
+      selector:
+        object:
+    repeat_minutes:
+      default: 30
+      selector:
+        number:
+          min: 5
+          max: 1440
+          mode: box
+    reminder_window_minutes:
+      default: 180
+      selector:
+        number:
+          min: 0
+          max: 10080
+          mode: box
+    auto_miss_after_minutes:
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 43200
+          mode: box
+cancel_intake:
+  fields:
+    occurrence_id:
+      selector:
+        text:
+    reference:
+      selector:
+        text:

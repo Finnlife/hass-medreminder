@@ -41,7 +41,7 @@ sehr man diesem Code vertrauen sollte — lies ihn selbst, bevor du ihn auf eine
 Instanz laufen lässt, die dir wichtig ist, und beachte den Warnhinweis oben zu
 echten Medikamenten.
 
-## Implementierte Funktionen (v0.6.1)
+## Implementierte Funktionen (v0.7.0)
 
 - Medikamentenstammdaten mit Hersteller, Barcode/Produktcode, Stärke,
   Darreichungsform, Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen
@@ -52,6 +52,8 @@ echten Medikamenten.
 - Mehrere Medikamente und individuelle Dosen in einer Einnahme
 - Ungeplante Einnahmen mit optionaler Notiz und denselben Bestands- und
   Nachweisgarantien
+- Einmalige Einnahmen aus Automatisierungen, mit Grund, Referenz gegen
+  Dopplungen und eigenen Erinnerungseinstellungen
 - Wiederholte Erinnerungen über ausgewählte `notify.*`-Dienste und Skripte, mit
   Erinnerungsfenster gegen Benachrichtigungsfluten nach längerer Abwesenheit
 - Optionaler automatischer Status `versäumt` für liegengebliebene Einnahmen
@@ -134,6 +136,8 @@ Aktionen:
 
 - `medication_reminder.record_intake`
 - `medication_reminder.record_unplanned_intake`
+- `medication_reminder.schedule_intake`
+- `medication_reminder.cancel_intake`
 - `medication_reminder.skip_intake`
 - `medication_reminder.snooze`
 - `medication_reminder.postpone_interval`
@@ -148,6 +152,89 @@ Events:
 - `medication_reminder_missed`
 - `medication_reminder_low_stock`
 - `medication_reminder_postponed`
+
+## Einmalige Einnahmen aus Automatisierungen
+
+`medication_reminder.schedule_intake` plant eine einzelne Einnahme außerhalb
+wiederkehrender Pläne. Damit kann eine Automatisierung auf ein Ereignis reagieren:
+
+```yaml
+automation:
+  - alias: Magnesium nach dem Sport
+    triggers:
+      - trigger: zone
+        entity_id: person.finn
+        zone: zone.fitnessstudio
+        event: leave
+    actions:
+      - action: medication_reminder.schedule_intake
+        data:
+          items:
+            - medication: Magnesium
+              dose: 2
+          time: "20:00"
+          reason: Sport
+          reference: "sport-{{ now().date() }}"
+          notify_services:
+            - notify.mobile_app_handy
+```
+
+Die Einnahme verhält sich danach wie jede andere: Sie erscheint im Panel, auf der
+Karte, in der To-do-Liste und im Kalender, erinnert über die angegebenen Dienste,
+bucht beim Erfassen den Bestand ab und zählt in die Therapietreue.
+
+**Medikament wählen.** Jeder Eintrag braucht `dose` und entweder `medication_id`
+oder `medication`. `medication` akzeptiert den Medikamentennamen oder den
+aufgedruckten Scan-Code — Automatisierungen bleiben so lesbar und müssen keine
+internen IDs mitschleppen.
+
+**Zeitpunkt wählen.** Genau eine dieser Angaben:
+
+| Option | Bedeutung |
+| --- | --- |
+| `scheduled_at` | Absolutes Datum mit Uhrzeit |
+| `time` | Uhrzeit heute, oder morgen, wenn sie schon vorbei ist |
+| `time` + `date` | Uhrzeit an genau diesem Tag |
+| `in_minutes` | Minuten ab jetzt |
+
+Ohne Angabe ist die Einnahme sofort fällig.
+
+**Doppeltes Auslösen ist unkritisch.** Mit `reference` verschiebt ein zweiter
+Aufruf mit derselben Referenz die bestehende offene Einnahme, statt eine zweite
+anzulegen, und behält deren ID, damit eine bereits verschickte Benachrichtigung
+gültig bleibt. Wähle eine Referenz, die zum Ereignis stabil ist, etwa
+`sport-{{ now().date() }}`.
+
+**Weitere Optionen.** `title` setzt die Überschrift (Standard: der Grund),
+`scripts` startet Skripte bei jeder Erinnerung, und `repeat_minutes`,
+`reminder_window_minutes` sowie `auto_miss_after_minutes` verhalten sich genau wie
+die Einstellungen eines wiederkehrenden Plans.
+
+Die Aktion liefert die angelegte Einnahme zurück, ein Folgeschritt kann sie nutzen:
+
+```yaml
+      - action: medication_reminder.schedule_intake
+        response_variable: geplant
+        data:
+          items:
+            - medication: Magnesium
+              dose: 2
+          in_minutes: 90
+      - action: notify.mobile_app_handy
+        data:
+          message: "Magnesium geplant für {{ geplant.scheduled_at }}"
+```
+
+`medication_reminder.cancel_intake` entfernt eine geplante einmalige Einnahme
+wieder, per `occurrence_id` oder per `reference`. Es greift nur auf einmalige,
+noch offene und unberührte Einnahmen zu und schreibt nichts in den Verlauf — eine
+abgebrochene Planung gilt also nicht als ausgelassen:
+
+```yaml
+      - action: medication_reminder.cancel_intake
+        data:
+          reference: "sport-{{ now().date() }}"
+```
 
 ## Lovelace-Karte
 

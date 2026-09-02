@@ -1,6 +1,6 @@
 """Focused invariant tests for stock mutation behavior."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import importlib
 import json
 from pathlib import Path
@@ -329,7 +329,9 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
             "notify_services": ["notify.phone"],
             "scripts": [],
         }
-        await manager._async_notify(regimen, manager.data["occurrences"][0])
+        await manager._async_notify(
+            regimen, regimen["name"], manager.data["occurrences"][0]
+        )
         payload = manager.hass.services.calls[0][2]
         self.assertEqual("Medikamenteneinnahme", payload["title"])
         self.assertEqual("Alles genommen", payload["data"]["actions"][0]["title"])
@@ -342,7 +344,9 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
             "notify_services": ["notify.phone"],
             "scripts": [],
         }
-        await manager._async_notify(regimen, manager.data["occurrences"][0])
+        await manager._async_notify(
+            regimen, regimen["name"], manager.data["occurrences"][0]
+        )
         payload = manager.hass.services.calls[0][2]
         self.assertEqual("Medication intake", payload["title"])
         self.assertEqual("Mark all taken", payload["data"]["actions"][0]["title"])
@@ -693,6 +697,279 @@ class DashboardMetricTests(unittest.IsolatedAsyncioTestCase):
         manager.data["occurrences"] = [entry]
         self.assertEqual(0, manager.adherence()["total"])
         self.assertIsNone(manager.adherence()["rate"])
+
+
+class AdHocIntakeTests(unittest.IsolatedAsyncioTestCase):
+    """One-off intakes planned by automations."""
+
+    def build(self):
+        manager = manager_module.MedicationManager(FakeHass())
+        now = datetime.now().astimezone()
+        manager.data = {
+            "medications": [
+                {
+                    "id": "a1b2", "name": "Magnesium", "unit": "Kapseln",
+                    "stock": 20.0, "stock_mode": "packages",
+                    "low_stock_threshold": 2.0, "scan_code": "med23456",
+                },
+                {
+                    "id": "c3d4", "name": "Zink", "unit": "Tabletten",
+                    "stock": 10.0, "stock_mode": "packages",
+                    "low_stock_threshold": 2.0, "scan_code": "med23457",
+                },
+            ],
+            "packages": [
+                {
+                    "id": "pkg", "medication_id": "a1b2", "nickname": "Base",
+                    "lot_number": "", "expires_on": None, "external_code": "",
+                    "initial_quantity": 20.0, "remaining_quantity": 20.0,
+                    "created_at": now.isoformat(),
+                }
+            ],
+            "regimens": [],
+            "occurrences": [],
+            "last_generated_at": (now - timedelta(minutes=1)).isoformat(),
+        }
+        return manager, now
+
+    async def test_medication_is_resolved_by_name(self) -> None:
+        manager, now = self.build()
+        result = await manager.async_schedule_intake(
+            [{"medication": "magnesium", "dose": 2}],
+            now + timedelta(hours=6),
+            reason="Sport",
+        )
+        self.assertTrue(result["ad_hoc"])
+        self.assertEqual("Sport", result["regimen_name"])
+        self.assertEqual("Sport", result["reason"])
+        self.assertEqual("a1b2", result["items"][0]["medication_id"])
+        self.assertEqual(2.0, result["items"][0]["planned_dose"])
+        self.assertRegex(result["scan_code"], r"^med[A-Z2-9]{5}$")
+
+    async def test_medication_is_resolved_by_scan_code(self) -> None:
+        manager, now = self.build()
+        result = await manager.async_schedule_intake(
+            [{"medication": "med23457", "dose": 1}], now + timedelta(hours=1)
+        )
+        self.assertEqual("c3d4", result["items"][0]["medication_id"])
+        self.assertEqual("Zink", result["regimen_name"])
+
+    async def test_unknown_medication_is_rejected(self) -> None:
+        manager, now = self.build()
+        with self.assertRaises(ValueError):
+            await manager.async_schedule_intake(
+                [{"medication": "Kalium", "dose": 1}], now + timedelta(hours=1)
+            )
+
+    async def test_ambiguous_medication_name_is_rejected(self) -> None:
+        manager, now = self.build()
+        manager.data["medications"][1]["name"] = "Magnesium"
+        with self.assertRaises(ValueError):
+            await manager.async_schedule_intake(
+                [{"medication": "Magnesium", "dose": 1}], now + timedelta(hours=1)
+            )
+
+    async def test_reference_reschedules_instead_of_duplicating(self) -> None:
+        manager, now = self.build()
+        first = await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 2}],
+            now + timedelta(hours=6),
+            reason="Sport",
+            reference="gym-today",
+        )
+        second = await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 3}],
+            now + timedelta(hours=8),
+            reason="Sport",
+            reference="gym-today",
+        )
+        self.assertEqual(1, len(manager.data["occurrences"]))
+        self.assertEqual(first["id"], second["id"])
+        self.assertEqual(first["scan_code"], second["scan_code"])
+        self.assertEqual(3.0, manager.data["occurrences"][0]["items"][0]["planned_dose"])
+
+    async def test_a_different_reference_adds_a_second_intake(self) -> None:
+        manager, now = self.build()
+        await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 1}],
+            now + timedelta(hours=6), reference="monday",
+        )
+        await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 1}],
+            now + timedelta(hours=7), reference="tuesday",
+        )
+        self.assertEqual(2, len(manager.data["occurrences"]))
+
+    async def test_a_resolved_intake_is_not_reused_by_its_reference(self) -> None:
+        manager, now = self.build()
+        first = await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 1}],
+            now - timedelta(minutes=5), reference="gym-today",
+        )
+        await manager.async_record_intake(first["id"])
+        await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 1}],
+            now + timedelta(hours=6), reference="gym-today",
+        )
+        self.assertEqual(2, len(manager.data["occurrences"]))
+
+    async def test_scheduling_too_far_ahead_is_rejected(self) -> None:
+        manager, now = self.build()
+        with self.assertRaises(ValueError):
+            await manager.async_schedule_intake(
+                [{"medication_id": "a1b2", "dose": 1}], now + timedelta(days=400)
+            )
+
+    async def test_duplicate_medication_is_rejected(self) -> None:
+        manager, now = self.build()
+        with self.assertRaises(ValueError):
+            await manager.async_schedule_intake(
+                [
+                    {"medication_id": "a1b2", "dose": 1},
+                    {"medication": "Magnesium", "dose": 2},
+                ],
+                now + timedelta(hours=1),
+            )
+
+    async def test_one_off_intake_reminds_with_its_own_settings(self) -> None:
+        manager, now = self.build()
+        await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 2}],
+            now - timedelta(minutes=5),
+            reason="Sport",
+            reminder={"notify_services": ["notify.phone"], "repeat_minutes": 30},
+        )
+        await manager._async_tick(now)
+        self.assertEqual(1, len(manager.hass.services.calls))
+        message = manager.hass.services.calls[0][2]["message"]
+        self.assertIn("Magnesium", message)
+        self.assertIn("Sport", message)
+        self.assertEqual(1, manager.data["occurrences"][0]["reminders_sent"])
+
+    async def test_one_off_intake_without_targets_stays_silent(self) -> None:
+        manager, now = self.build()
+        await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 2}], now - timedelta(minutes=5)
+        )
+        await manager._async_tick(now)
+        self.assertEqual([], manager.hass.services.calls)
+        self.assertEqual("pending", manager.data["occurrences"][0]["status"])
+
+    async def test_one_off_intake_can_expire_as_missed(self) -> None:
+        manager, now = self.build()
+        await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 2}],
+            now - timedelta(minutes=90),
+            reminder={"auto_miss_after_minutes": 60},
+        )
+        await manager._async_tick(now)
+        self.assertEqual("missed", manager.data["occurrences"][0]["status"])
+        self.assertEqual(20.0, manager.data["medications"][0]["stock"])
+
+    async def test_one_off_intake_deducts_stock_when_recorded(self) -> None:
+        manager, now = self.build()
+        planned = await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 2}], now - timedelta(minutes=5)
+        )
+        await manager.async_record_intake(planned["id"])
+        self.assertEqual("taken", manager.data["occurrences"][0]["status"])
+        self.assertEqual(18.0, manager.data["medications"][0]["stock"])
+
+    async def test_cancelling_removes_the_intake_without_history(self) -> None:
+        manager, now = self.build()
+        planned = await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 2}],
+            now + timedelta(hours=6), reference="gym-today",
+        )
+        result = await manager.async_cancel_intake(reference="gym-today")
+        self.assertEqual(planned["id"], result["occurrence_id"])
+        self.assertEqual([], manager.data["occurrences"])
+
+    async def test_cancelling_a_scheduled_intake_is_rejected(self) -> None:
+        manager, now = self.build()
+        manager.data["occurrences"] = [
+            {
+                "id": "ticket", "regimen_id": "plan", "regimen_name": "Morgens",
+                "unplanned": False, "ad_hoc": False,
+                "scheduled_at": now.isoformat(), "status": "pending",
+                "items": [
+                    {
+                        "medication_id": "a1b2", "planned_dose": 1.0,
+                        "taken_dose": 0.0, "allocations": [],
+                    }
+                ],
+            }
+        ]
+        with self.assertRaises(ValueError):
+            await manager.async_cancel_intake("ticket")
+        self.assertEqual(1, len(manager.data["occurrences"]))
+
+    async def test_cancelling_a_partially_taken_intake_is_rejected(self) -> None:
+        manager, now = self.build()
+        planned = await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 2}], now - timedelta(minutes=5)
+        )
+        await manager.async_record_intake(planned["id"], {"a1b2": 1})
+        with self.assertRaises(ValueError):
+            await manager.async_cancel_intake(planned["id"])
+
+    async def test_one_off_intakes_appear_in_the_calendar(self) -> None:
+        manager, now = self.build()
+        await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 2}],
+            now + timedelta(hours=6), reason="Sport", title="Nach dem Sport",
+        )
+        events = manager.planned_events(now, now + timedelta(days=1))
+        self.assertEqual(1, len(events))
+        self.assertEqual("Nach dem Sport", events[0]["summary"])
+        self.assertIn("Magnesium", events[0]["description"])
+        self.assertEqual("Sport", events[0]["instructions"])
+
+    async def test_one_off_intakes_count_towards_adherence(self) -> None:
+        manager, now = self.build()
+        planned = await manager.async_schedule_intake(
+            [{"medication_id": "a1b2", "dose": 2}], now - timedelta(minutes=5)
+        )
+        await manager.async_record_intake(planned["id"])
+        adherence = manager.adherence()
+        self.assertEqual(1, adherence["total"])
+        self.assertEqual(100.0, adherence["rate"])
+
+
+class IntakeTimeResolutionTests(unittest.TestCase):
+    """The mutually exclusive time options of the schedule_intake action."""
+
+    def setUp(self) -> None:
+        self.now = datetime(2026, 9, 2, 14, 30, tzinfo=timezone(timedelta(hours=2)))
+
+    def resolve(self, data):
+        return models_module.resolve_intake_time(data, self.now)
+
+    def test_absolute_datetime_is_kept(self) -> None:
+        target = self.now + timedelta(hours=5)
+        self.assertEqual(target, self.resolve({"scheduled_at": target}))
+
+    def test_naive_datetime_is_read_as_local(self) -> None:
+        value = self.resolve({"scheduled_at": datetime(2026, 9, 2, 20, 0)})
+        self.assertEqual("2026-09-02T20:00:00+02:00", value.isoformat())
+
+    def test_offset_is_relative_to_now(self) -> None:
+        self.assertEqual(self.now + timedelta(minutes=90), self.resolve({"in_minutes": 90}))
+
+    def test_time_later_today_stays_today(self) -> None:
+        value = self.resolve({"time": "20:00"})
+        self.assertEqual("2026-09-02T20:00:00+02:00", value.isoformat())
+
+    def test_time_already_passed_moves_to_tomorrow(self) -> None:
+        value = self.resolve({"time": "08:00"})
+        self.assertEqual("2026-09-03T08:00:00+02:00", value.isoformat())
+
+    def test_an_explicit_date_is_never_moved(self) -> None:
+        value = self.resolve({"time": "08:00", "date": "2026-09-02"})
+        self.assertEqual("2026-09-02T08:00:00+02:00", value.isoformat())
+
+    def test_without_any_option_the_intake_is_due_now(self) -> None:
+        self.assertEqual(self.now, self.resolve({}))
 
 
 if __name__ == "__main__":

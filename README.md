@@ -36,7 +36,7 @@ before it lands, but this is worth knowing when you judge how much to trust the
 code — please read it yourself before running it on an instance you care about,
 and see the caution above regarding real medication.
 
-## Implemented features (v0.6.1)
+## Implemented features (v0.7.0)
 
 - Medication records with manufacturer, barcode/product code, strength, dosage
   form, stock unit, warning threshold, and notes; creating one immediately opens
@@ -46,6 +46,8 @@ and see the caution above regarding real medication.
 - Move a due interval intake to tomorrow and shift the complete future cycle
 - Multiple medications and individual doses in one intake
 - Unplanned intakes with an optional note and the same stock and audit guarantees
+- One-off intakes planned from automations with a reason, a deduplication
+  reference and their own reminder settings
 - Repeating reminders through selected `notify.*` services and scripts, with a
   reminder window that stops notification floods after a long absence
 - Optional automatic `missed` status for abandoned intakes, so adherence stays honest
@@ -124,6 +126,8 @@ Actions:
 
 - `medication_reminder.record_intake`
 - `medication_reminder.record_unplanned_intake`
+- `medication_reminder.schedule_intake`
+- `medication_reminder.cancel_intake`
 - `medication_reminder.skip_intake`
 - `medication_reminder.snooze`
 - `medication_reminder.postpone_interval`
@@ -138,6 +142,86 @@ Events:
 - `medication_reminder_missed`
 - `medication_reminder_low_stock`
 - `medication_reminder_postponed`
+
+## One-off intakes from automations
+
+`medication_reminder.schedule_intake` plans a single intake that does not belong
+to a repeating plan, so an automation can react to something that happened:
+
+```yaml
+automation:
+  - alias: Magnesium after the gym
+    triggers:
+      - trigger: zone
+        entity_id: person.finn
+        zone: zone.gym
+        event: leave
+    actions:
+      - action: medication_reminder.schedule_intake
+        data:
+          items:
+            - medication: Magnesium
+              dose: 2
+          time: "20:00"
+          reason: Workout
+          reference: "gym-{{ now().date() }}"
+          notify_services:
+            - notify.mobile_app_phone
+```
+
+The intake then behaves like any other: it shows up in the panel, on the card, in
+the to-do list and in the calendar, it reminds through the given services, it
+deducts stock when recorded, and it counts towards adherence.
+
+**Picking the medication.** Each item needs a `dose` plus either `medication_id`
+or `medication`. `medication` accepts the medication name or its printed scan
+code, so automations stay readable and do not have to carry internal ids.
+
+**Picking the time.** Give exactly one of:
+
+| Option | Meaning |
+| --- | --- |
+| `scheduled_at` | An absolute date and time |
+| `time` | A clock time today, or tomorrow when that time has already passed |
+| `time` + `date` | A clock time on that exact day |
+| `in_minutes` | Minutes from now |
+
+Without any of them the intake is due immediately.
+
+**Running twice is safe.** With a `reference`, a second call for the same
+reference reschedules the existing open intake instead of adding a duplicate, and
+keeps its ID so an already-sent notification stays valid. Pick a reference that is
+stable for the event, for example `gym-{{ now().date() }}`.
+
+**Other options.** `title` sets the heading (defaults to the reason), `scripts`
+runs scripts on every reminder, and `repeat_minutes`, `reminder_window_minutes`
+and `auto_miss_after_minutes` work exactly like the settings of a repeating plan.
+
+The action returns the created intake, so a following step can use it:
+
+```yaml
+      - action: medication_reminder.schedule_intake
+        response_variable: planned
+        data:
+          items:
+            - medication: Magnesium
+              dose: 2
+          in_minutes: 90
+      - action: notify.mobile_app_phone
+        data:
+          message: "Magnesium planned for {{ planned.scheduled_at }}"
+```
+
+`medication_reminder.cancel_intake` removes a planned one-off intake again, by
+`occurrence_id` or by `reference`. It only touches one-off intakes that are still
+open and untouched, and it writes nothing to the history, so a cancelled plan
+does not count as skipped:
+
+```yaml
+      - action: medication_reminder.cancel_intake
+        data:
+          reference: "gym-{{ now().date() }}"
+```
 
 ## Lovelace card
 
