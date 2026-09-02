@@ -273,6 +273,29 @@ Die Karte nutzt die WebSocket-API der Integration und zeigt deshalb dieselben
 Packungsempfehlungen wie das Panel und erfasst auch Teil-Dosen. Sie aktualisiert
 sich bei jedem Medication-Reminder-Event und pollt zusätzlich alle 15 Sekunden.
 
+### Die Karte taucht nicht auf
+
+Das Kartenmodul wird von der Integration selbst registriert und erscheint daher
+erst, wenn Home Assistant die neuen Dateien geladen hat. Der Reihe nach:
+
+1. **Home Assistant neu starten.** Dateien kopieren oder in HACS aktualisieren
+   reicht nicht — das Modul wird beim Start der Integration registriert.
+2. **Prüfen, ob die Datei ausgeliefert wird.** Rufe
+   `/medication_reminder_frontend/medication-reminder-card.js` auf deiner
+   Home-Assistant-Adresse auf. Ein 404 heißt, das Update ist nicht im
+   `custom_components`-Verzeichnis angekommen; alles andere heißt, die Datei ist da.
+3. **Browser ohne Cache neu laden** (Strg+Umschalt+R, in der Companion App den
+   App-Cache leeren). Das Script-Tag steckt in der Dashboard-Seite selbst, eine
+   gecachte Seite enthält es also nicht.
+4. **In der Kartenauswahl unter „Benutzerdefiniert" schauen** oder nach
+   *Medication* suchen.
+5. **Browser-Konsole prüfen**, ob ein Fehler zu `localize.js` erscheint. Das
+   hieße, dass nur ein Teil des Frontend-Ordners aktualisiert wurde.
+
+Als Rückfalloption lässt sich das Modul auch von Hand unter **Einstellungen →
+Dashboards → Drei-Punkte-Menü → Ressourcen** als JavaScript-Modul mit der URL
+`/medication_reminder_frontend/medication-reminder-card.js` eintragen.
+
 ## Verlauf exportieren
 
 Im Tab **Verlauf** einen inklusiven Zeitraum von **Von** bis **Bis** auswählen und

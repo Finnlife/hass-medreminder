@@ -115,6 +115,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await manager.async_close()
     if not hass.data[DOMAIN]["managers"]:
         frontend.async_remove_panel(hass, PANEL_URL)
+        # Drop the card module too, otherwise reloading the entry after an
+        # update would leave the previous version registered alongside the new
+        # one and the older card class would win the element registration.
+        frontend.remove_extra_js_url(hass, CARD_MODULE_URL)
         for service in SERVICES:
             hass.services.async_remove(DOMAIN, service)
         hass.data[DOMAIN]["api_registered"] = False

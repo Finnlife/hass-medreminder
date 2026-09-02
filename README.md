@@ -260,6 +260,28 @@ The card uses the integration's WebSocket API, so it shows the same package
 recommendations as the panel and records partial doses. It refreshes on every
 Medication Reminder event and additionally polls every 15 seconds.
 
+### The card does not show up
+
+The card module is registered by the integration itself, so it only appears
+after Home Assistant has loaded the new files. In order:
+
+1. **Restart Home Assistant.** Copying the files or updating in HACS is not
+   enough — the module is registered while the integration starts.
+2. **Check that the file is served.** Open
+   `/medication_reminder_frontend/medication-reminder-card.js` on your Home
+   Assistant host. A 404 means the update did not reach the `custom_components`
+   directory; anything else means the file is there.
+3. **Reload the browser without its cache** (Ctrl+Shift+R, or clear the app
+   cache in the Companion App). The script tag lives in the dashboard page
+   itself, so a cached page will not contain it.
+4. **Look under "Custom" in the card picker**, or search for *Medication*.
+5. **Check the browser console** for an error mentioning `localize.js`. That
+   would mean only part of the frontend folder was updated.
+
+As a fallback the module can also be added by hand under **Settings →
+Dashboards → three-dot menu → Resources**, as a JavaScript module with the URL
+`/medication_reminder_frontend/medication-reminder-card.js`.
+
 ## History export
 
 Open **History**, choose an inclusive **From** and **To** date, and download JSON or
