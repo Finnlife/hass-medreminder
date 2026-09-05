@@ -41,7 +41,7 @@ sehr man diesem Code vertrauen sollte — lies ihn selbst, bevor du ihn auf eine
 Instanz laufen lässt, die dir wichtig ist, und beachte den Warnhinweis oben zu
 echten Medikamenten.
 
-## Implementierte Funktionen (v0.7.5)
+## Implementierte Funktionen (v0.7.6)
 
 - Medikamentenstammdaten mit Hersteller, Barcode/Produktcode, Stärke,
   Darreichungsform, Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen
@@ -368,6 +368,9 @@ erstellt werden; der dauerhafte Kompatibilitätsvertrag gilt erst ab Version 1.0
 
 Die genaue Anleitung für automatisierte Checks, eine isolierte Docker-Instanz und
 die Übergabe an Codex steht in [docs/TESTING.de.md](https://github.com/Finnlife/hass-medreminder/blob/main/docs/TESTING.de.md).
+
+
+Die Änderungen je Version stehen im [Changelog](https://github.com/Finnlife/hass-medreminder/blob/main/CHANGELOG.md).
 
 ## Lizenz
 

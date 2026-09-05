@@ -36,7 +36,7 @@ before it lands, but this is worth knowing when you judge how much to trust the
 code — please read it yourself before running it on an instance you care about,
 and see the caution above regarding real medication.
 
-## Implemented features (v0.7.5)
+## Implemented features (v0.7.6)
 
 - Medication records with manufacturer, barcode/product code, strength, dosage
   form, stock unit, warning threshold, and notes; creating one immediately opens
@@ -351,6 +351,9 @@ version 1.0.
 
 See [docs/TESTING.md](https://github.com/Finnlife/hass-medreminder/blob/main/docs/TESTING.md) for automated checks, the isolated Docker
 test instance, and the exact handoff needed for a full Codex browser test.
+
+
+Changes per version are listed in the [changelog](https://github.com/Finnlife/hass-medreminder/blob/main/CHANGELOG.md).
 
 ## License
 

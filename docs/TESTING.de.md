@@ -135,13 +135,18 @@ wollen — dafür braucht es einen Pull Request gegen `home-assistant/brands`.
 bietet immer das an, worauf das neueste GitHub-Release zeigt; dieser Schritt
 liefert das Update also tatsächlich aus.
 
-Ein Release zu schneiden heißt damit nur:
+Ein Release zu schneiden heißt damit:
 
 1. `version` in `manifest.json` **und** `FRONTEND_CACHE_KEY` in `const.py` auf
    denselben Wert setzen. Der Workflow verweigert das Release, wenn beide
    auseinanderlaufen, weil Browser sonst weiter Panel und Karte aus dem Cache
    ausliefern.
-2. Nach `main` pushen.
+2. Die Änderung in `CHANGELOG.md` unter einer Überschrift `## <version>`
+   beschreiben, auf Englisch. Die Release-Notes stammen aus diesem Abschnitt,
+   das ist also der Text, den ein Update in HACS zeigt. Ohne Abschnitt wird das
+   Release verweigert, und die Testsuite schlägt schon fehl, sobald das Manifest
+   eine Version nennt, die der Changelog nicht beschreibt.
+3. Nach `main` pushen.
 
 Der Workflow führt danach Tests und `hassfest` erneut aus, legt das Tag an und
 veröffentlicht ein Release mit generierten Notizen sowie einer

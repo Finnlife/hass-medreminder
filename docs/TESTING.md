@@ -133,12 +133,17 @@ which requires a pull request against `home-assistant/brands`.
 offers whatever the newest GitHub release points at, so this is the step that
 actually ships an update to installations.
 
-Cutting a release therefore means one thing:
+Cutting a release therefore means:
 
 1. Bump `version` in `manifest.json` **and** `FRONTEND_CACHE_KEY` in `const.py`
    to the same value. The workflow refuses to release when they differ, because
    browsers would keep serving the cached panel and card.
-2. Push to `main`.
+2. Describe the change in `CHANGELOG.md` under a `## <version>` heading, in
+   English. The release notes are taken from that section, so this is what an
+   update in HACS shows. Without a section the release is refused, and the test
+   suite fails as soon as the manifest names a version the changelog does not
+   describe.
+3. Push to `main`.
 
 The workflow then re-runs the tests and `hassfest`, creates the tag, and
 publishes a release with generated notes plus a `medication_reminder.zip` for

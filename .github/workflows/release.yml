@@ -3,7 +3,9 @@ name: Release
 # HACS offers whatever the newest GitHub release points at, so cutting a
 # release is the step that actually ships an update to installations. This
 # workflow does it from the version in the integration manifest: bump the
-# manifest, push to main, and the matching tag and release appear.
+# manifest, describe the change in CHANGELOG.md, push to main, and the
+# matching tag and release appear. Without a changelog section the release
+# is refused, so no version goes out undescribed.
 
 on:
   push:
@@ -51,6 +53,13 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Take the release notes from the changelog
+        if: steps.existing.outputs.exists == 'false'
+        run: |
+          python scripts/changelog-section.py "${{ steps.version.outputs.version }}" \
+            --output release-notes.md
+          cat release-notes.md
+
       - name: Make sure the frontend cache key matches the manifest
         if: steps.existing.outputs.exists == 'false'
         run: |
@@ -97,8 +106,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          previous=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' || true)
+          if [ -n "$previous" ]; then
+            {
+              echo
+              echo "**Full changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${previous}...${{ steps.version.outputs.version }}"
+            } >> release-notes.md
+          fi
           gh release create "${{ steps.version.outputs.version }}" \
             --target "$GITHUB_SHA" \
             --title "${{ steps.version.outputs.version }}" \
-            --generate-notes \
+            --notes-file release-notes.md \
             medication_reminder.zip
