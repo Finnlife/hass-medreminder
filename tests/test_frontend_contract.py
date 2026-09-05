@@ -12,6 +12,7 @@ PANEL = (
 WEBSOCKET = ROOT / "custom_components/medication_reminder/websocket.py"
 STYLES = ROOT / "custom_components/medication_reminder/frontend/styles.js"
 CARD = ROOT / "custom_components/medication_reminder/frontend/medication-reminder-card.js"
+LOCALIZE = ROOT / "custom_components/medication_reminder/frontend/localize.js"
 INIT = ROOT / "custom_components/medication_reminder/__init__.py"
 
 
@@ -175,6 +176,47 @@ class LovelaceCardContractTests(unittest.TestCase):
         init = INIT.read_text(encoding="utf-8")
         self.assertIn("medication-reminder-card.js", init)
         self.assertIn("frontend.add_extra_js_url(hass, CARD_MODULE_URL)", init)
+
+
+class LanguageOverrideContractTests(unittest.TestCase):
+    """The temporary language switch used for screenshots."""
+
+    def test_override_beats_home_assistant(self) -> None:
+        localize = LOCALIZE.read_text(encoding="utf-8")
+        resolve = localize[localize.index("export function resolveLanguage") :]
+        self.assertIn("const override = languageOverride();", resolve)
+        self.assertIn("if (override) return override;", resolve)
+
+    def test_override_reads_the_url_before_the_session(self) -> None:
+        localize = LOCALIZE.read_text(encoding="utf-8")
+        self.assertIn("urlOverride() || storedOverride()", localize)
+        self.assertIn('const OVERRIDE_KEY = "medication_reminder_language"', localize)
+
+    def test_storage_access_cannot_break_the_frontend(self) -> None:
+        localize = LOCALIZE.read_text(encoding="utf-8")
+        end_of_function = "\n}"
+        for helper in ("function storedOverride()", "function urlOverride()"):
+            block = localize[localize.index(helper) :]
+            body = block[: block.index(end_of_function)]
+            self.assertIn("catch (error)", body, helper)
+
+    def test_console_helper_is_exposed_once(self) -> None:
+        localize = LOCALIZE.read_text(encoding="utf-8")
+        self.assertIn("!window.medicationReminder", localize)
+        for name in ("setLanguage", "resetLanguage", "currentLanguage", "languages"):
+            self.assertIn(name, localize)
+
+    def test_unknown_languages_are_rejected(self) -> None:
+        localize = LOCALIZE.read_text(encoding="utf-8")
+        setter = localize[localize.index("export function setLanguage") :]
+        self.assertIn("throw new Error(", setter[: setter.index("\n}")])
+
+    def test_panel_and_card_react_to_the_override(self) -> None:
+        for path in (PANEL, CARD):
+            source = path.read_text(encoding="utf-8")
+            self.assertIn("onLanguageChange", source, path.name)
+            self.assertIn("applyLanguage()", source, path.name)
+            self.assertIn("this.unsubscribeLanguage", source, path.name)
 
 
 if __name__ == "__main__":

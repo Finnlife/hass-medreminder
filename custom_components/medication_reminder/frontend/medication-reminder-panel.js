@@ -1,4 +1,4 @@
-import { createTranslator, resolveLanguage } from "./localize.js";
+import { createTranslator, onLanguageChange, resolveLanguage } from "./localize.js";
 import { PANEL_STYLES } from "./styles.js";
 
 const DAY_KEYS = [
@@ -56,14 +56,18 @@ class MedicationReminderPanel extends HTMLElement {
 
   set hass(value) {
     this._hass = value;
-    const language = resolveLanguage(value);
-    if (language !== this.language) {
-      this.language = language;
-      this.locale = language === "de" ? "de-DE" : "en-US";
-      this.t = createTranslator(language);
-      this.renderAll();
-    }
+    if (this.applyLanguage()) this.renderAll();
     if (!this.state && !this.loading) this.load();
+  }
+
+  /** Adopt the active language; returns whether it changed. */
+  applyLanguage() {
+    const language = resolveLanguage(this._hass);
+    if (language === this.language) return false;
+    this.language = language;
+    this.locale = language === "de" ? "de-DE" : "en-US";
+    this.t = createTranslator(language);
+    return true;
   }
 
   get hass() { return this._hass; }
@@ -73,11 +77,17 @@ class MedicationReminderPanel extends HTMLElement {
   connectedCallback() {
     this.renderAll();
     this.poller = window.setInterval(() => this.load(false), POLL_INTERVAL);
+    this.unsubscribeLanguage = onLanguageChange(() => {
+      this.applyLanguage();
+      this.renderAll();
+      this.renderOverlay(true);
+    });
   }
 
   disconnectedCallback() {
     window.clearInterval(this.poller);
     window.clearTimeout(this.toastTimer);
+    this.unsubscribeLanguage?.();
   }
 
   buildSkeleton() {

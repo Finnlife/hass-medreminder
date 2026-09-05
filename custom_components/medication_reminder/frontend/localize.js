@@ -729,11 +729,86 @@ const DE = Object.freeze({
 });
 
 export const CATALOGS = Object.freeze({ en: EN, de: DE });
+export const LANGUAGES = Object.freeze(Object.keys(CATALOGS));
+
+/**
+ * A temporary language override, kept outside Home Assistant's own setting.
+ *
+ * It exists so the panel and the card can be captured in every language
+ * without changing the language of the whole installation. It survives a
+ * reload of the tab and disappears when the tab is closed.
+ */
+const OVERRIDE_KEY = "medication_reminder_language";
+const listeners = new Set();
+
+function isKnown(language) {
+  return typeof language === "string" && Object.hasOwn(CATALOGS, language);
+}
+
+function storedOverride() {
+  try {
+    return window.sessionStorage.getItem(OVERRIDE_KEY);
+  } catch (error) {
+    // A browser with site data disabled must not break the panel.
+    return null;
+  }
+}
+
+function urlOverride() {
+  try {
+    return new URLSearchParams(window.location.search).get("lang");
+  } catch (error) {
+    return null;
+  }
+}
+
+/** Return the active override, or null when Home Assistant decides. */
+export function languageOverride() {
+  const requested = urlOverride() || storedOverride();
+  return isKnown(requested) ? requested : null;
+}
+
+/**
+ * Override the language of the panel and the card, or pass null to follow
+ * Home Assistant again. Available in the browser console as
+ * `medicationReminder.setLanguage("en")`.
+ */
+export function setLanguage(language) {
+  const value = language === null || language === undefined ? null : String(language);
+  if (value !== null && !isKnown(value)) {
+    throw new Error(`Unknown language ${value}. Available: ${LANGUAGES.join(", ")}`);
+  }
+  try {
+    if (value === null) window.sessionStorage.removeItem(OVERRIDE_KEY);
+    else window.sessionStorage.setItem(OVERRIDE_KEY, value);
+  } catch (error) {
+    // Without storage the override still applies to the current view.
+  }
+  listeners.forEach((listener) => listener(value));
+  return value;
+}
+
+/** Subscribe to override changes; returns the unsubscribe function. */
+export function onLanguageChange(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
 
 export function resolveLanguage(hass) {
+  const override = languageOverride();
+  if (override) return override;
   const requested = String(hass?.language || hass?.locale?.language || "en")
     .toLowerCase().split("-")[0];
   return Object.hasOwn(CATALOGS, requested) ? requested : "en";
+}
+
+if (typeof window !== "undefined" && !window.medicationReminder) {
+  window.medicationReminder = Object.freeze({
+    languages: LANGUAGES,
+    setLanguage,
+    resetLanguage: () => setLanguage(null),
+    currentLanguage: () => languageOverride(),
+  });
 }
 
 export function createTranslator(language) {

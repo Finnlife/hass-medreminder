@@ -145,3 +145,36 @@ publishes a release with generated notes plus a `medication_reminder.zip` for
 manual installation. HACS itself reads the files from the tag and ignores that
 asset. Publishing the same version twice is a no-op, so the workflow is safe to
 re-run.
+
+## Switching the language for screenshots
+
+The panel and the card follow Home Assistant's language, which makes capturing
+both languages awkward. A temporary override solves that without touching the
+setting of the whole installation.
+
+In the browser console, on any page that shows the panel or the card:
+
+```js
+medicationReminder.setLanguage("en")   // switch immediately
+medicationReminder.setLanguage("de")
+medicationReminder.resetLanguage()     // follow Home Assistant again
+medicationReminder.languages           // ["en", "de"]
+```
+
+Every mounted panel and card re-renders at once, so no reload is needed. The
+override lives in `sessionStorage`, which means it survives a reload of the tab
+and disappears when the tab is closed. It never reaches the server, so nobody
+else's session is affected.
+
+The panel also accepts `?lang=` in its URL, which is handy for scripted
+captures:
+
+```
+/medication_reminder?lang=en
+```
+
+A language in the URL wins over one set in the console.
+
+The override only covers the panel and the card. Entity names, action
+descriptions and the text of a reminder notification come from Home Assistant
+and follow its own language setting.

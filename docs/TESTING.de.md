@@ -148,3 +148,36 @@ veröffentlicht ein Release mit generierten Notizen sowie einer
 `medication_reminder.zip` für die manuelle Installation. HACS selbst liest die
 Dateien aus dem Tag und ignoriert dieses Asset. Dieselbe Version zweimal zu
 veröffentlichen ist wirkungslos, der Workflow kann also gefahrlos erneut laufen.
+
+## Sprache für Screenshots umschalten
+
+Panel und Karte folgen der Sprache von Home Assistant, was das Aufnehmen beider
+Sprachen umständlich macht. Eine temporäre Übersteuerung löst das, ohne die
+Einstellung der ganzen Installation anzufassen.
+
+In der Browser-Konsole, auf jeder Seite mit Panel oder Karte:
+
+```js
+medicationReminder.setLanguage("en")   // sofort umschalten
+medicationReminder.setLanguage("de")
+medicationReminder.resetLanguage()     // wieder Home Assistant folgen
+medicationReminder.languages           // ["en", "de"]
+```
+
+Alle eingehängten Panels und Karten rendern sofort neu, ein Reload ist nicht
+nötig. Die Übersteuerung liegt im `sessionStorage`, überlebt also ein Neuladen
+des Tabs und verschwindet beim Schließen. Sie erreicht den Server nie, fremde
+Sitzungen bleiben unberührt.
+
+Das Panel akzeptiert zusätzlich `?lang=` in der URL, praktisch für
+skriptgesteuerte Aufnahmen:
+
+```
+/medication_reminder?lang=de
+```
+
+Eine Sprache in der URL sticht die in der Konsole gesetzte.
+
+Die Übersteuerung betrifft nur Panel und Karte. Entitätsnamen,
+Aktionsbeschreibungen und der Text einer Erinnerungs-Benachrichtigung kommen aus
+Home Assistant und folgen dessen Spracheinstellung.

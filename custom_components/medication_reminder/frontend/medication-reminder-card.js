@@ -5,7 +5,7 @@
  * entity attributes, so it can show per-package dose plans and record partial
  * intakes the same way the panel does.
  */
-import { createTranslator, resolveLanguage } from "./localize.js";
+import { createTranslator, onLanguageChange, resolveLanguage } from "./localize.js";
 
 const CARD_TYPE = "medication-reminder-card";
 const EDITOR_TYPE = `${CARD_TYPE}-editor`;
@@ -164,15 +164,19 @@ class MedicationReminderCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    const language = resolveLanguage(hass);
-    if (language !== this.language) {
-      this.language = language;
-      this.locale = language === "de" ? "de-DE" : "en-US";
-      this.t = createTranslator(language);
-      this._signature = null;
-      this.render();
-    }
+    if (this.applyLanguage()) this.render();
     if (!this.state && !this.loading) this.load();
+  }
+
+  /** Adopt the active language; returns whether it changed. */
+  applyLanguage() {
+    const language = resolveLanguage(this._hass);
+    if (language === this.language) return false;
+    this.language = language;
+    this.locale = language === "de" ? "de-DE" : "en-US";
+    this.t = createTranslator(language);
+    this._signature = null;
+    return true;
   }
 
   get hass() { return this._hass; }
@@ -189,11 +193,16 @@ class MedicationReminderCard extends HTMLElement {
     this.load();
     this.poller = window.setInterval(() => this.load(), POLL_INTERVAL);
     this.subscribe();
+    this.unsubscribeLanguage = onLanguageChange(() => {
+      this.applyLanguage();
+      this.render();
+    });
   }
 
   disconnectedCallback() {
     window.clearInterval(this.poller);
     this.unsubscribe();
+    this.unsubscribeLanguage?.();
   }
 
   async subscribe() {
