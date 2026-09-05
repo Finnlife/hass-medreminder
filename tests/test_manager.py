@@ -439,7 +439,12 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
         fixed = datetime.fromisoformat("2026-08-31T14:00:00+02:00")
         with patch.object(manager_module.dt_util, "now", return_value=fixed):
             result = await manager.async_postpone_interval("ticket")
-        self.assertTrue(result["scheduled_at"].startswith("2026-09-01T13:00:00"))
+        # Compare the instant, not its local rendering, so the assertion holds
+        # in every machine timezone.
+        self.assertEqual(
+            datetime.fromisoformat("2026-09-01T13:00:00+02:00"),
+            datetime.fromisoformat(result["scheduled_at"]),
+        )
         self.assertEqual(
             "2026-09-01", manager.data["regimens"][0]["schedule"]["start_date"]
         )

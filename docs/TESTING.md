@@ -8,6 +8,7 @@ restart, and test without touching production data.
 Install Python 3 and Node.js, then run from the repository root:
 
 ```shell
+pip install -r <(python -c "import json;print(chr(10).join(json.load(open('custom_components/medication_reminder/manifest.json'))['requirements']))")
 python -m unittest discover -s tests -v
 python -m compileall custom_components/medication_reminder tests
 node --check custom_components/medication_reminder/frontend/localize.js

@@ -54,25 +54,24 @@ jobs:
       - name: Make sure the frontend cache key matches the manifest
         if: steps.existing.outputs.exists == 'false'
         run: |
-          python - <<'PY'
-          import json
-          import pathlib
-          import re
+          python -c "
+          import json, pathlib, re, sys
+          root = pathlib.Path('custom_components/medication_reminder')
+          version = json.loads((root / 'manifest.json').read_text())['version']
+          match = re.search(r'FRONTEND_CACHE_KEY: Final = \"([^\"]+)\"', (root / 'const.py').read_text())
+          if match is None:
+              sys.exit('FRONTEND_CACHE_KEY not found in const.py')
+          if match.group(1) != version:
+              sys.exit(f'FRONTEND_CACHE_KEY {match.group(1)} does not match manifest version {version}; browsers would keep serving the cached panel and card')
+          print('Frontend cache key matches', version)
+          "
 
-          root = pathlib.Path("custom_components/medication_reminder")
-          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-          const = (root / "const.py").read_text(encoding="utf-8")
-          match = re.search(r'FRONTEND_CACHE_KEY: Final = "([^"]+)"', const)
-          assert match, "FRONTEND_CACHE_KEY not found in const.py"
-          if match.group(1) != manifest["version"]:
-              raise SystemExit(
-                  "FRONTEND_CACHE_KEY "
-                  f"{match.group(1)!r} does not match the manifest version "
-                  f"{manifest['version']!r}. Browsers would keep serving the old "
-                  "panel and card."
-              )
-          print("Frontend cache key matches", manifest["version"])
-          PY
+      - name: Install the integration requirements
+        if: steps.existing.outputs.exists == 'false'
+        run: |
+          requirements=$(python -c "import json; print(' '.join(json.load(open('custom_components/medication_reminder/manifest.json'))['requirements']))")
+          echo "Installing: $requirements"
+          pip install $requirements
 
       - name: Run the checks before publishing
         if: steps.existing.outputs.exists == 'false'
