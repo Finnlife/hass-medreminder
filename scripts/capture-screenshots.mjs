@@ -26,6 +26,8 @@ const OUT_DIR = resolve(
 const VIEWPORT = { width: 1280, height: 900 };
 const CARD_VIEWPORT = { width: 520, height: 900 };
 const LANGUAGES = ["de", "en"];
+// The fixture is written for central European wall-clock times.
+const TIMEZONE = "Europe/Berlin";
 
 /** Every shot: the harness view, the file name and how tall the page must be. */
 const SHOTS = [
@@ -88,6 +90,11 @@ async function main() {
             deviceScaleFactor: 2,
             colorScheme: theme === "dark" ? "dark" : "light",
             reducedMotion: "reduce",
+            // Without a fixed zone the shown clock times would follow whatever
+            // the machine is set to, and a plan at 21:00 would appear as 19:00
+            // on a UTC runner.
+            timezoneId: TIMEZONE,
+            locale: language === "de" ? "de-DE" : "en-GB",
           });
           const page = await context.newPage();
           // A frozen clock keeps every relative label stable between runs.
