@@ -1,0 +1,105 @@
+name: Release
+
+# HACS offers whatever the newest GitHub release points at, so cutting a
+# release is the step that actually ships an update to installations. This
+# workflow does it from the version in the integration manifest: bump the
+# manifest, push to main, and the matching tag and release appear.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - custom_components/medication_reminder/manifest.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish the manifest version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Read the version from the manifest
+        id: version
+        run: |
+          version=$(python -c "import json; print(json.load(open('custom_components/medication_reminder/manifest.json'))['version'])")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Manifest version: $version"
+
+      - name: Check whether this version was already released
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${{ steps.version.outputs.version }} already exists, nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Make sure the frontend cache key matches the manifest
+        if: steps.existing.outputs.exists == 'false'
+        run: |
+          python - <<'PY'
+          import json
+          import pathlib
+          import re
+
+          root = pathlib.Path("custom_components/medication_reminder")
+          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+          const = (root / "const.py").read_text(encoding="utf-8")
+          match = re.search(r'FRONTEND_CACHE_KEY: Final = "([^"]+)"', const)
+          assert match, "FRONTEND_CACHE_KEY not found in const.py"
+          if match.group(1) != manifest["version"]:
+              raise SystemExit(
+                  "FRONTEND_CACHE_KEY "
+                  f"{match.group(1)!r} does not match the manifest version "
+                  f"{manifest['version']!r}. Browsers would keep serving the old "
+                  "panel and card."
+              )
+          print("Frontend cache key matches", manifest["version"])
+          PY
+
+      - name: Run the checks before publishing
+        if: steps.existing.outputs.exists == 'false'
+        run: |
+          python -m unittest discover -s tests
+          python -m compileall -q custom_components/medication_reminder tests
+          for file in custom_components/medication_reminder/frontend/*.js; do
+            node --check "$file"
+          done
+
+      - name: Validate the Home Assistant manifest
+        if: steps.existing.outputs.exists == 'false'
+        uses: home-assistant/actions/hassfest@master
+
+      - name: Build a zip for manual installation
+        if: steps.existing.outputs.exists == 'false'
+        run: |
+          cd custom_components
+          zip -r "$GITHUB_WORKSPACE/medication_reminder.zip" medication_reminder
+
+      - name: Create the tag and the release
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            --target "$GITHUB_SHA" \
+            --title "${{ steps.version.outputs.version }}" \
+            --generate-notes \
+            medication_reminder.zip

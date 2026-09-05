@@ -111,3 +111,36 @@ phone renders and returns notification actions correctly.
 The physical delivery and rendering of a Companion App notification is the only
 step that requires a real device and human confirmation. Codex can verify the
 generated payload, Home Assistant event handling, and all browser-visible behavior.
+
+## Continuous integration and releases
+
+Two workflows live in `.github/workflows`.
+
+**`validate.yml`** runs on every push and pull request, and once a week so that
+changes in Home Assistant or HACS surface before they reach an installation. It
+runs the unit tests, byte-compiles the integration, syntax-checks the frontend
+modules, runs `ruff`, and runs the official `hassfest` and HACS validators.
+
+The HACS job needs two things set on the GitHub repository itself, otherwise it
+fails: a **description** and at least one **topic**. Both are set under the gear
+icon next to *About* on the repository page. The `brands` check is skipped,
+because it only applies to integrations that want to join the HACS default list,
+which requires a pull request against `home-assistant/brands`.
+
+**`release.yml`** publishes a release whenever the version in
+`custom_components/medication_reminder/manifest.json` changes on `main`. HACS
+offers whatever the newest GitHub release points at, so this is the step that
+actually ships an update to installations.
+
+Cutting a release therefore means one thing:
+
+1. Bump `version` in `manifest.json` **and** `FRONTEND_CACHE_KEY` in `const.py`
+   to the same value. The workflow refuses to release when they differ, because
+   browsers would keep serving the cached panel and card.
+2. Push to `main`.
+
+The workflow then re-runs the tests and `hassfest`, creates the tag, and
+publishes a release with generated notes plus a `medication_reminder.zip` for
+manual installation. HACS itself reads the files from the tag and ignores that
+asset. Publishing the same version twice is a no-op, so the workflow is safe to
+re-run.

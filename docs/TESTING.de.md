@@ -112,3 +112,38 @@ Darstellung und Rückmeldung einer echten Smartphone-Notification.
 Nur Zustellung und Darstellung einer Companion-App-Benachrichtigung benötigen ein
 echtes Gerät und menschliche Bestätigung. Payload, Events und Browser-Verhalten
 kann Codex vollständig prüfen.
+
+## Continuous Integration und Releases
+
+In `.github/workflows` liegen zwei Workflows.
+
+**`validate.yml`** läuft bei jedem Push und Pull Request sowie einmal wöchentlich,
+damit Änderungen in Home Assistant oder HACS auffallen, bevor sie eine
+Installation erreichen. Er führt die Unit-Tests aus, kompiliert die Integration,
+prüft die Frontend-Module syntaktisch, lässt `ruff` laufen und ruft die
+offiziellen Validatoren `hassfest` und HACS auf.
+
+Der HACS-Job braucht zwei Angaben am GitHub-Repository selbst, sonst schlägt er
+fehl: eine **Beschreibung** und mindestens ein **Topic**. Beides wird über das
+Zahnrad neben *About* auf der Repository-Seite gesetzt. Die `brands`-Prüfung ist
+abgeschaltet, weil sie nur für Integrationen gilt, die in die HACS-Standardliste
+wollen — dafür braucht es einen Pull Request gegen `home-assistant/brands`.
+
+**`release.yml`** veröffentlicht ein Release, sobald sich die Version in
+`custom_components/medication_reminder/manifest.json` auf `main` ändert. HACS
+bietet immer das an, worauf das neueste GitHub-Release zeigt; dieser Schritt
+liefert das Update also tatsächlich aus.
+
+Ein Release zu schneiden heißt damit nur:
+
+1. `version` in `manifest.json` **und** `FRONTEND_CACHE_KEY` in `const.py` auf
+   denselben Wert setzen. Der Workflow verweigert das Release, wenn beide
+   auseinanderlaufen, weil Browser sonst weiter Panel und Karte aus dem Cache
+   ausliefern.
+2. Nach `main` pushen.
+
+Der Workflow führt danach Tests und `hassfest` erneut aus, legt das Tag an und
+veröffentlicht ein Release mit generierten Notizen sowie einer
+`medication_reminder.zip` für die manuelle Installation. HACS selbst liest die
+Dateien aus dem Tag und ignoriert dieses Asset. Dieselbe Version zweimal zu
+veröffentlichen ist wirkungslos, der Workflow kann also gefahrlos erneut laufen.
