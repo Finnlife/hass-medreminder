@@ -341,3 +341,7 @@ version 1.0.
 
 See [docs/TESTING.md](docs/TESTING.md) for automated checks, the isolated Docker
 test instance, and the exact handoff needed for a full Codex browser test.
+
+## License
+
+Released under the [MIT License](LICENSE).

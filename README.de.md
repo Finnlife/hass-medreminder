@@ -358,3 +358,7 @@ erstellt werden; der dauerhafte Kompatibilitätsvertrag gilt erst ab Version 1.0
 
 Die genaue Anleitung für automatisierte Checks, eine isolierte Docker-Instanz und
 die Übergabe an Codex steht in [docs/TESTING.de.md](docs/TESTING.de.md).
+
+## Lizenz
+
+Veröffentlicht unter der [MIT-Lizenz](LICENSE).
