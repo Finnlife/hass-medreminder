@@ -1,8 +1,8 @@
 # Medication Reminder für Home Assistant
 
-<img src="custom_components/medication_reminder/frontend/logo.png" alt="Medication-Reminder-Logo" width="160">
+<img src="https://raw.githubusercontent.com/Finnlife/hass-medreminder/main/custom_components/medication_reminder/frontend/logo.png" alt="Medication-Reminder-Logo" width="160">
 
-[English](README.md)
+[English](https://github.com/Finnlife/hass-medreminder/blob/main/README.md)
 
 > [!CAUTION]
 > **Verlasse dich bei echten Medikamenten nicht auf dieses Projekt.**
@@ -41,7 +41,7 @@ sehr man diesem Code vertrauen sollte — lies ihn selbst, bevor du ihn auf eine
 Instanz laufen lässt, die dir wichtig ist, und beachte den Warnhinweis oben zu
 echten Medikamenten.
 
-## Implementierte Funktionen (v0.7.1)
+## Implementierte Funktionen (v0.7.2)
 
 - Medikamentenstammdaten mit Hersteller, Barcode/Produktcode, Stärke,
   Darreichungsform, Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen
@@ -357,8 +357,8 @@ erstellt werden; der dauerhafte Kompatibilitätsvertrag gilt erst ab Version 1.0
 ## Entwicklung und vollständiger Test
 
 Die genaue Anleitung für automatisierte Checks, eine isolierte Docker-Instanz und
-die Übergabe an Codex steht in [docs/TESTING.de.md](docs/TESTING.de.md).
+die Übergabe an Codex steht in [docs/TESTING.de.md](https://github.com/Finnlife/hass-medreminder/blob/main/docs/TESTING.de.md).
 
 ## Lizenz
 
-Veröffentlicht unter der [MIT-Lizenz](LICENSE).
+Veröffentlicht unter der [MIT-Lizenz](https://github.com/Finnlife/hass-medreminder/blob/main/LICENSE).
