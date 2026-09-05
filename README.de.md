@@ -41,7 +41,7 @@ sehr man diesem Code vertrauen sollte — lies ihn selbst, bevor du ihn auf eine
 Instanz laufen lässt, die dir wichtig ist, und beachte den Warnhinweis oben zu
 echten Medikamenten.
 
-## Implementierte Funktionen (v0.7.0)
+## Implementierte Funktionen (v0.7.1)
 
 - Medikamentenstammdaten mit Hersteller, Barcode/Produktcode, Stärke,
   Darreichungsform, Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen
