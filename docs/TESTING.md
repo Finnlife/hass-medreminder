@@ -178,3 +178,40 @@ A language in the URL wins over one set in the console.
 The override only covers the panel and the card. Entity names, action
 descriptions and the text of a reminder notification come from Home Assistant
 and follow its own language setting.
+
+## Regenerating the screenshots
+
+The images in the readme come from `docs/screenshot/harness.html`, a standalone
+page that feeds the real panel and card modules a fixed set of demo data. No
+Home Assistant instance is involved, so a capture needs no onboarding, no
+database and no account, and it always renders the same pixels: the browser
+clock is pinned to the reference time in `docs/screenshot/fixture.js`.
+
+```shell
+npm install --no-save playwright@1.63.0
+npx playwright install chromium
+node scripts/capture-screenshots.mjs
+```
+
+This writes `docs/screenshots/*.png` for both languages, plus a dark variant of
+the overview and the card. The run fails when the frontend logs an error or when
+an asset such as the logo does not load, so a broken image cannot reach the
+readme unnoticed.
+
+The `Screenshots` workflow does the same on every push that touches the frontend
+and commits the result when it differs. Because a different browser build
+renders text slightly differently, the workflow pins the Playwright version;
+images generated on another operating system will differ marginally until that
+workflow regenerates them.
+
+Icons are vendored into `docs/screenshot/icons.js` so the capture needs no icon
+package. After adding an `mdi:` icon to the panel or the card, refresh them:
+
+```shell
+npm install --no-save @mdi/js
+node scripts/generate-icons.mjs
+```
+
+That script fails on an icon name that Material Design Icons does not know,
+which is worth running after any icon change: an unknown name renders as an
+empty box in Home Assistant without any error.

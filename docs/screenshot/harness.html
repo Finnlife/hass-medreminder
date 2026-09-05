@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Medication Reminder screenshot harness</title>
+<style>
+  html, body {
+    margin: 0;
+    background: var(--primary-background-color);
+    color: var(--primary-text-color);
+    font-family: Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  /* The Home Assistant theme tokens the panel and the card build on. */
+  :root, body {
+    --primary-color: #03a9f4;
+    --primary-text-color: #212121;
+    --secondary-text-color: #727272;
+    --card-background-color: #ffffff;
+    --primary-background-color: #f5f5f5;
+    --divider-color: rgba(0, 0, 0, .12);
+    --error-color: #db4437;
+    --warning-color: #ffa600;
+    --success-color: #43a047;
+    --info-color: #039be5;
+    --text-primary-color: #ffffff;
+    --app-header-background-color: #ffffff;
+    --ha-card-border-radius: 12px;
+    --ha-card-box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+  }
+  body.dark, body.dark :root {
+    --primary-text-color: #e1e1e1;
+    --secondary-text-color: #9b9b9b;
+    --card-background-color: #1c1c1c;
+    --primary-background-color: #111111;
+    --divider-color: rgba(225, 225, 225, .12);
+    --app-header-background-color: #1c1c1c;
+    --ha-card-box-shadow: 0 1px 3px rgba(0, 0, 0, .4);
+  }
+  /* Screenshots must not catch a half-finished animation. */
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    caret-color: transparent !important;
+  }
+  #card-stage { padding: 24px; max-width: 460px; }
+  body.card-only #panel-stage { display: none; }
+  body:not(.card-only) #card-stage { display: none; }
+</style>
+</head>
+<body>
+<div id="panel-stage"></div>
+<div id="card-stage"></div>
+
+<script type="module">
+import { ICON_PATHS } from "./icons.js";
+import { buildState, FROZEN_NOW } from "./fixture.js";
+
+/** Stand-in for Home Assistant's ha-icon, drawing the real MDI path. */
+class HaIcon extends HTMLElement {
+  static get observedAttributes() { return ["icon"]; }
+  connectedCallback() { this.draw(); }
+  attributeChangedCallback() { this.draw(); }
+  draw() {
+    const path = ICON_PATHS[this.getAttribute("icon")] || "";
+    this.style.display = "inline-flex";
+    this.style.alignItems = "center";
+    this.style.justifyContent = "center";
+    this.style.width = "var(--mdc-icon-size, 24px)";
+    this.style.height = "var(--mdc-icon-size, 24px)";
+    this.innerHTML =
+      `<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">` +
+      `<path d="${path}" fill="currentColor"></path></svg>`;
+  }
+}
+customElements.define("ha-icon", HaIcon);
+
+/** Stand-in for ha-card, matching the shape Home Assistant renders. */
+class HaCard extends HTMLElement {
+  connectedCallback() {
+    this.style.display = "block";
+    this.style.background = "var(--card-background-color)";
+    this.style.borderRadius = "var(--ha-card-border-radius, 12px)";
+    this.style.boxShadow = "var(--ha-card-box-shadow)";
+    this.style.color = "var(--primary-text-color)";
+  }
+}
+customElements.define("ha-card", HaCard);
+
+const params = new URLSearchParams(window.location.search);
+const language = params.get("lang") === "en" ? "en" : "de";
+const view = params.get("view") || "overview";
+if (params.get("theme") === "dark") document.body.classList.add("dark");
+
+const STATE = buildState();
+const hass = {
+  language,
+  connection: {
+    sendMessagePromise: async (message) => {
+      if (message.type === "medication_reminder/get_state") {
+        return JSON.parse(JSON.stringify(STATE));
+      }
+      return {};
+    },
+    subscribeEvents: async () => () => {},
+  },
+};
+
+window.__ready = false;
+window.__frozenNow = FROZEN_NOW;
+
+async function mount() {
+  if (view === "card") {
+    document.body.classList.add("card-only");
+    await import("../../custom_components/medication_reminder/frontend/medication-reminder-card.js");
+    const card = document.createElement("medication-reminder-card");
+    card.setConfig({
+      type: "custom:medication-reminder-card",
+      mode: "open",
+      show_stock: true,
+      stock_filter: "all",
+      show_upcoming: true,
+      upcoming_count: 2,
+    });
+    document.getElementById("card-stage").append(card);
+    card.hass = hass;
+    window.__component = card;
+  } else {
+    await import("../../custom_components/medication_reminder/frontend/medication-reminder-panel.js");
+    const panel = document.createElement("medication-reminder-panel");
+    document.getElementById("panel-stage").append(panel);
+    panel.hass = hass;
+    panel.activeTab = view;
+    window.__component = panel;
+  }
+  // Let the first data load and render settle before the capture starts.
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  if (view !== "card") {
+    window.__component.activeTab = view;
+    window.__component.renderNav();
+    window.__component.renderMain();
+  }
+  window.__ready = true;
+}
+
+mount();
+</script>
+</body>
+</html>

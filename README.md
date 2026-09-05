@@ -36,7 +36,7 @@ before it lands, but this is worth knowing when you judge how much to trust the
 code — please read it yourself before running it on an instance you care about,
 and see the caution above regarding real medication.
 
-## Implemented features (v0.7.3)
+## Implemented features (v0.7.4)
 
 - Medication records with manufacturer, barcode/product code, strength, dosage
   form, stock unit, warning threshold, and notes; creating one immediately opens
@@ -71,6 +71,16 @@ and see the caution above regarding real medication.
 - A Lovelace card that records, snoozes and skips due intakes straight from a
   dashboard, registered automatically without a manual resource entry
 - English by default, with German UI, entity, setup, action, and notification translations
+
+## Screenshots
+
+| Overview | Medications |
+| --- | --- |
+| <img src="https://raw.githubusercontent.com/Finnlife/hass-medreminder/main/docs/screenshots/overview-en.png" alt="Overview with due intakes" width="420"> | <img src="https://raw.githubusercontent.com/Finnlife/hass-medreminder/main/docs/screenshots/medications-en.png" alt="Medications with packages" width="420"> |
+
+| Plans | Dashboard card |
+| --- | --- |
+| <img src="https://raw.githubusercontent.com/Finnlife/hass-medreminder/main/docs/screenshots/plans-en.png" alt="Intake plans" width="420"> | <img src="https://raw.githubusercontent.com/Finnlife/hass-medreminder/main/docs/screenshots/card-en.png" alt="Lovelace card" width="260"> |
 
 ## Installation
 

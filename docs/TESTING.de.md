@@ -181,3 +181,42 @@ Eine Sprache in der URL sticht die in der Konsole gesetzte.
 Die Übersteuerung betrifft nur Panel und Karte. Entitätsnamen,
 Aktionsbeschreibungen und der Text einer Erinnerungs-Benachrichtigung kommen aus
 Home Assistant und folgen dessen Spracheinstellung.
+
+## Screenshots neu erzeugen
+
+Die Bilder in der README stammen aus `docs/screenshot/harness.html`, einer
+eigenständigen Seite, die den echten Panel- und Karten-Modulen feste Demodaten
+unterschiebt. Es ist keine Home-Assistant-Instanz beteiligt, eine Aufnahme
+braucht also weder Onboarding noch Datenbank noch Konto — und sie rendert immer
+dieselben Pixel, weil die Browser-Uhr auf den Referenzzeitpunkt in
+`docs/screenshot/fixture.js` festgenagelt wird.
+
+```shell
+npm install --no-save playwright@1.63.0
+npx playwright install chromium
+node scripts/capture-screenshots.mjs
+```
+
+Das schreibt `docs/screenshots/*.png` für beide Sprachen, dazu eine dunkle
+Variante von Überblick und Karte. Der Lauf schlägt fehl, wenn das Frontend einen
+Fehler protokolliert oder ein Asset wie das Logo nicht lädt — ein kaputtes Bild
+schafft es also nicht unbemerkt in die README.
+
+Der Workflow `Screenshots` macht dasselbe bei jedem Push, der das Frontend
+berührt, und committet das Ergebnis, wenn es sich unterscheidet. Da ein anderer
+Browser-Build Text minimal anders rendert, ist die Playwright-Version gepinnt;
+auf einem anderen Betriebssystem erzeugte Bilder weichen leicht ab, bis dieser
+Workflow sie neu erzeugt.
+
+Die Icons liegen als Pfaddaten in `docs/screenshot/icons.js`, damit die Aufnahme
+ohne Icon-Paket auskommt. Nach dem Hinzufügen eines `mdi:`-Icons in Panel oder
+Karte neu erzeugen:
+
+```shell
+npm install --no-save @mdi/js
+node scripts/generate-icons.mjs
+```
+
+Das Skript bricht bei einem Icon-Namen ab, den Material Design Icons nicht
+kennt. Das lohnt sich nach jeder Icon-Änderung: ein unbekannter Name rendert in
+Home Assistant als leeres Kästchen, ganz ohne Fehlermeldung.

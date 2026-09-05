@@ -41,7 +41,7 @@ sehr man diesem Code vertrauen sollte — lies ihn selbst, bevor du ihn auf eine
 Instanz laufen lässt, die dir wichtig ist, und beachte den Warnhinweis oben zu
 echten Medikamenten.
 
-## Implementierte Funktionen (v0.7.3)
+## Implementierte Funktionen (v0.7.4)
 
 - Medikamentenstammdaten mit Hersteller, Barcode/Produktcode, Stärke,
   Darreichungsform, Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen
@@ -79,6 +79,16 @@ echten Medikamenten.
   automatisch registriert ohne manuellen Ressourceneintrag
 - Englisch als Standard, mit deutscher Oberfläche, Entitäten, Einrichtung,
   Aktionen und Benachrichtigungen
+
+## Screenshots
+
+| Überblick | Medikamente |
+| --- | --- |
+| <img src="https://raw.githubusercontent.com/Finnlife/hass-medreminder/main/docs/screenshots/overview-de.png" alt="Überblick mit fälligen Einnahmen" width="420"> | <img src="https://raw.githubusercontent.com/Finnlife/hass-medreminder/main/docs/screenshots/medications-de.png" alt="Medikamente mit Packungen" width="420"> |
+
+| Pläne | Dashboard-Karte |
+| --- | --- |
+| <img src="https://raw.githubusercontent.com/Finnlife/hass-medreminder/main/docs/screenshots/plans-de.png" alt="Einnahmepläne" width="420"> | <img src="https://raw.githubusercontent.com/Finnlife/hass-medreminder/main/docs/screenshots/card-de.png" alt="Lovelace-Karte" width="260"> |
 
 ## Installation
 

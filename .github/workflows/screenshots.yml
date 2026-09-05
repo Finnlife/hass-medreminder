@@ -1,0 +1,56 @@
+name: Screenshots
+
+# Keeps the interface screenshots in the readme in step with the frontend.
+# The shots come from a standalone harness with fixed demo data and a frozen
+# clock, so a run only produces a diff when the interface itself changed.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - custom_components/medication_reminder/frontend/**
+      - docs/screenshot/**
+      - scripts/capture-screenshots.mjs
+      - .github/workflows/screenshots.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: screenshots
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    name: Capture the panel and the card
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      # Pinned, because a different browser build renders text slightly
+      # differently and would rewrite every image for no reason.
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+
+      - name: Capture
+        run: node scripts/capture-screenshots.mjs
+
+      - name: Commit when the interface changed
+        run: |
+          if [ -z "$(git status --porcelain docs/screenshots)" ]; then
+            echo "Screenshots are unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots
+          git commit -m "docs: refresh the interface screenshots"
+          git pull --rebase --autostash
+          git push

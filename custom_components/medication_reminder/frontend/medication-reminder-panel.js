@@ -318,7 +318,7 @@ class MedicationReminderPanel extends HTMLElement {
       </div>
       <div class="header-actions">
         <button class="ghost" data-action="new-unplanned">
-          <ha-icon icon="mdi:pill-plus"></ha-icon><span>${this.t("app.record_unplanned")}</span>
+          <ha-icon icon="mdi:pill"></ha-icon><span>${this.t("app.record_unplanned")}</span>
         </button>
         <button class="primary" data-action="new-regimen">
           <ha-icon icon="mdi:plus"></ha-icon><span>${this.t("regimens.create")}</span>
