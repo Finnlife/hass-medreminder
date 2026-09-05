@@ -36,7 +36,7 @@ before it lands, but this is worth knowing when you judge how much to trust the
 code — please read it yourself before running it on an instance you care about,
 and see the caution above regarding real medication.
 
-## Implemented features (v0.7.4)
+## Implemented features (v0.7.5)
 
 - Medication records with manufacturer, barcode/product code, strength, dosage
   form, stock unit, warning threshold, and notes; creating one immediately opens

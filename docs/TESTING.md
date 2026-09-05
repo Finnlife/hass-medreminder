@@ -215,3 +215,27 @@ node scripts/generate-icons.mjs
 That script fails on an icon name that Material Design Icons does not know,
 which is worth running after any icon change: an unknown name renders as an
 empty box in Home Assistant without any error.
+
+## The brand icon
+
+Home Assistant shows an icon for the integration in HACS, on the integrations
+page and on its devices. Since Home Assistant 2026.3 a custom integration can
+ship that icon itself, in a `brand/` directory, and a local image takes priority
+over the brands CDN. No pull request against `home-assistant/brands` is needed.
+
+`custom_components/medication_reminder/brand/` therefore holds `icon.png`
+(256x256) and `icon@2x.png` (512x512), derived from the panel logo. Home
+Assistant falls back to the icon wherever a logo would be used, so a separate
+`logo.png` would only duplicate the square artwork.
+
+Regenerate them after changing the logo:
+
+```shell
+python scripts/generate-brand-icons.py
+```
+
+The script trims the transparent border, pads the artwork to a square rather
+than distorting it, and writes both required sizes.
+
+Older Home Assistant versions still read the icon from the brands CDN, where it
+would have to be added under `custom_integrations/medication_reminder/`.

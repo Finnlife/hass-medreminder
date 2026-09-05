@@ -220,3 +220,28 @@ node scripts/generate-icons.mjs
 Das Skript bricht bei einem Icon-Namen ab, den Material Design Icons nicht
 kennt. Das lohnt sich nach jeder Icon-Änderung: ein unbekannter Name rendert in
 Home Assistant als leeres Kästchen, ganz ohne Fehlermeldung.
+
+## Das Marken-Icon
+
+Home Assistant zeigt ein Icon für die Integration in HACS, auf der
+Integrationsseite und an ihren Geräten. Seit Home Assistant 2026.3 kann eine
+Custom Integration dieses Icon selbst mitliefern, in einem `brand/`-Verzeichnis;
+ein lokales Bild hat Vorrang vor dem Brands-CDN. Ein Pull Request gegen
+`home-assistant/brands` ist nicht nötig.
+
+In `custom_components/medication_reminder/brand/` liegen deshalb `icon.png`
+(256x256) und `icon@2x.png` (512x512), abgeleitet aus dem Panel-Logo. Home
+Assistant greift überall dort auf das Icon zurück, wo sonst ein Logo stünde —
+eine eigene `logo.png` würde die quadratische Grafik nur verdoppeln.
+
+Nach einer Änderung am Logo neu erzeugen:
+
+```shell
+python scripts/generate-brand-icons.py
+```
+
+Das Skript schneidet den transparenten Rand weg, füllt die Grafik zu einem
+Quadrat auf statt sie zu verzerren, und schreibt beide geforderten Größen.
+
+Ältere Home-Assistant-Versionen lesen das Icon weiterhin aus dem Brands-CDN, wo
+es unter `custom_integrations/medication_reminder/` eingetragen werden müsste.
