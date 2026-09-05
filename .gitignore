@@ -8,3 +8,7 @@ htmlcov/
 .vscode/
 .env*
 !.env.example
+
+# Node tooling for the screenshot capture
+node_modules/
+package-lock.json
