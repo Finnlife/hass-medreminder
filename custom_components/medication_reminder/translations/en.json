@@ -237,5 +237,31 @@
         }
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Label printing",
+        "description": "Print the scan codes of medications, packages and intakes on a Zebra label printer. Jobs are published on the MQTT broker that Home Assistant is already connected to, so the MQTT integration has to be set up and a labelprint service has to listen on the base topic below.",
+        "data": {
+          "label_printing_enabled": "Print labels over MQTT",
+          "label_base_topic": "Base topic",
+          "label_template": "Template",
+          "label_size": "Label size",
+          "label_copies": "Copies per print"
+        },
+        "data_description": {
+          "label_printing_enabled": "Adds a print button to every QR code in the Medications panel.",
+          "label_base_topic": "With the base topic labelprint, jobs go to labelprint/print and answers arrive on labelprint/result.",
+          "label_template": "Template of the print service. qr_nickname prints the QR code with the name beside it.",
+          "label_size": "Name of a label size the print service knows. Leave empty for its default.",
+          "label_copies": "How many copies one press of the button prints."
+        }
+      }
+    },
+    "error": {
+      "invalid_topic": "Enter a base topic without the wildcards + and #.",
+      "invalid_template": "Enter the name of a template of the print service."
+    }
   }
 }

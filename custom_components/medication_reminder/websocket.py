@@ -3,18 +3,23 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+import logging
 from datetime import timedelta
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .manager import MedicationManager
+from .printing import LabelPrinter
 from .qr import qr_data_uri
 from .scan_codes import SCAN_CODE_PATTERN
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def async_register_websocket_api(hass: HomeAssistant) -> None:
@@ -36,9 +41,17 @@ def async_register_websocket_api(hass: HomeAssistant) -> None:
         ws_export_backup,
         ws_import_backup,
         ws_skip,
+        ws_print_label,
         ws_delete_all_data,
     ):
         websocket_api.async_register_command(hass, command)
+
+
+def _printer(hass: HomeAssistant) -> LabelPrinter:
+    printers = hass.data.get(DOMAIN, {}).get("printers", {})
+    if not printers:
+        raise ValueError("Medication Reminder is not configured")
+    return next(iter(printers.values()))
 
 
 def _manager(hass: HomeAssistant) -> MedicationManager:
@@ -51,7 +64,7 @@ def _manager(hass: HomeAssistant) -> MedicationManager:
 async def _respond(connection, msg, operation: Callable[[], Awaitable[Any]]) -> None:
     try:
         result = await operation()
-    except (ValueError, TypeError, KeyError) as err:
+    except (ValueError, TypeError, KeyError, HomeAssistantError) as err:
         connection.send_error(msg["id"], "invalid_request", str(err))
         return
     connection.send_result(msg["id"], result)
@@ -61,7 +74,15 @@ async def _respond(connection, msg, operation: Callable[[], Awaitable[Any]]) -> 
 @websocket_api.async_response
 async def ws_get_state(hass, connection, msg) -> None:
     """Return the complete app state."""
-    connection.send_result(msg["id"], _manager(hass).snapshot())
+    state = _manager(hass).snapshot()
+    # Printing lives outside the manager, so it is merged in here. A problem
+    # with it must never keep the whole panel from loading.
+    try:
+        state["label_printing"] = _printer(hass).status()
+    except Exception:  # noqa: BLE001
+        _LOGGER.exception("Could not read the label printing status")
+        state["label_printing"] = {"enabled": False, "available": False}
+    connection.send_result(msg["id"], state)
 
 
 @websocket_api.websocket_command(
@@ -287,6 +308,23 @@ async def ws_import_backup(hass, connection, msg) -> None:
         connection,
         msg,
         lambda: _manager(hass).async_import_backup(msg["backup"]),
+    )
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/print_label",
+        vol.Required("value"): vol.Match(SCAN_CODE_PATTERN.pattern),
+        vol.Optional("name", default=""): str,
+    }
+)
+@websocket_api.async_response
+async def ws_print_label(hass, connection, msg) -> None:
+    """Send one scan code to the label printer."""
+    await _respond(
+        connection,
+        msg,
+        lambda: _printer(hass).async_print(msg["value"], msg.get("name", "")),
     )
 
 

@@ -270,6 +270,10 @@ class MedicationReminderPanel extends HTMLElement {
       "Only interval schedules can shift their cycle": "error.interval_only",
       "Only due intakes can shift to tomorrow": "error.interval_only",
       "Invalid delete confirmation": "error.delete_confirmation",
+      "Label printing is switched off": "error.printing_disabled",
+      "MQTT is not set up in Home Assistant": "error.printing_no_mqtt",
+      "Only a Medication Reminder scan code can be printed": "error.printing_invalid_code",
+      "The printer rejected the job": "error.printing_rejected",
       "Start date must not be after end date": "error.export_range",
     };
     if (known[message]) return this.t(known[message]);
@@ -1008,12 +1012,33 @@ class MedicationReminderPanel extends HTMLElement {
       <code>${esc(item.code)}</code>
       <p class="muted">${this.t("code.help")}</p>
       <div class="modal-actions">
+        ${this.renderPrintButton(item)}
         <button class="ghost" data-action="copy-code" data-value="${esc(item.code)}">
           <ha-icon icon="mdi:content-copy"></ha-icon>${this.t("code.copy")}</button>
         <button class="primary" data-action="close-modal">${this.t("common.close")}</button>
       </div></div>`;
     return this.dialog(this.t("code.dialog_label"),
       this.t("code.title", { object: this.t(`code.${item.kind}`) }), body);
+  }
+
+  /** The print button only exists once label printing is switched on. */
+  renderPrintButton(item) {
+    const printing = this.state?.label_printing;
+    if (!printing?.enabled) return "";
+    const blocked = !printing.available;
+    return `<button class="ghost" data-action="print-label"
+      data-value="${esc(item.code)}" data-label="${esc(item.label)}"
+      ${blocked ? `disabled title="${this.t("code.print_unavailable")}"` : ""}>
+      <ha-icon icon="mdi:printer"></ha-icon>${this.t("code.print")}</button>`;
+  }
+
+  async printLabel(code, name) {
+    try {
+      const result = await this.call("print_label", { value: code, name });
+      this.showToast(this.t(result?.confirmed ? "action.label_printed" : "action.label_sent"));
+    } catch (error) {
+      this.showToast(this.errorText(error), true);
+    }
   }
 
   dataModal() {
@@ -1215,6 +1240,9 @@ class MedicationReminderPanel extends HTMLElement {
     }
     if (action === "show-code") return this.openCode(button.dataset.kind, id, button.dataset.label);
     if (action === "copy-code") return this.copyCode(button.dataset.value);
+    if (action === "print-label") {
+      return this.printLabel(button.dataset.value, button.dataset.label);
+    }
     if (action === "export-history") return this.exportHistory(button.dataset.format);
     if (action === "export-backup") return this.exportBackup();
     if (action === "add-dose") return this.addDoseRow(button);

@@ -8,6 +8,22 @@ Entries are grouped as **Added**, **Changed**, **Fixed** and **Removed**, newest
 version first. Versions follow the manifest, and the project is still pre-1.0:
 the storage compatibility contract is not final until version 1.0.
 
+## 0.8.0
+
+### Added
+
+- Every QR code in the panel can be printed on a Zebra label printer. Printing
+  runs through a labelprint service on the MQTT broker Home Assistant is already
+  connected to, so the integration keeps no broker credentials of its own, and a
+  press sends nothing but the scan code and the name shown with it.
+- The integration gained an options dialog for printing: switch it on, set the
+  base topic, the template, the label size and the number of copies.
+
+### Fixed
+
+- The icon generator for the screenshot harness required an argument the
+  documented command did not pass, so it could not be run as described.
+
 ## 0.7.6
 
 ### Changed

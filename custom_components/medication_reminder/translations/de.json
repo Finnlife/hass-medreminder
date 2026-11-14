@@ -237,5 +237,31 @@
         }
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Etikettendruck",
+        "description": "Die Scan-Codes von Medikamenten, Packungen und Einnahmen auf einem Zebra-Etikettendrucker ausgeben. Die Aufträge laufen über den MQTT-Broker, mit dem Home Assistant ohnehin verbunden ist — die MQTT-Integration muss also eingerichtet sein und ein labelprint-Dienst muss auf dem Basis-Topic unten lauschen.",
+        "data": {
+          "label_printing_enabled": "Etiketten über MQTT drucken",
+          "label_base_topic": "Basis-Topic",
+          "label_template": "Vorlage",
+          "label_size": "Etikettengröße",
+          "label_copies": "Kopien je Druck"
+        },
+        "data_description": {
+          "label_printing_enabled": "Ergänzt bei jedem QR-Code im Medikamenten-Panel einen Druck-Button.",
+          "label_base_topic": "Beim Basis-Topic labelprint gehen Aufträge an labelprint/print, Antworten kommen auf labelprint/result.",
+          "label_template": "Vorlage des Druckdienstes. qr_nickname druckt den QR-Code mit dem Namen daneben.",
+          "label_size": "Name einer Etikettengröße, die der Druckdienst kennt. Leer lassen für dessen Standard.",
+          "label_copies": "Wie viele Kopien ein Druck erzeugt."
+        }
+      }
+    },
+    "error": {
+      "invalid_topic": "Gib ein Basis-Topic ohne die Platzhalter + und # an.",
+      "invalid_template": "Gib den Namen einer Vorlage des Druckdienstes an."
+    }
   }
 }

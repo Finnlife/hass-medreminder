@@ -41,7 +41,7 @@ sehr man diesem Code vertrauen sollte — lies ihn selbst, bevor du ihn auf eine
 Instanz laufen lässt, die dir wichtig ist, und beachte den Warnhinweis oben zu
 echten Medikamenten.
 
-## Implementierte Funktionen (v0.7.6)
+## Implementierte Funktionen (v0.8.0)
 
 - Medikamentenstammdaten mit Hersteller, Barcode/Produktcode, Stärke,
   Darreichungsform, Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen
@@ -73,6 +73,8 @@ echten Medikamenten.
 - Lokal erzeugte, kontraststarke QR-Codes für Medikamente, Packungen und offene
   Einnahme-Tickets; der Generator akzeptiert nur stabile Kurzkennungen wie
   `med7K2QF`, niemals eine URL oder Medikamentendaten
+- Druck dieser QR-Codes auf einem Zebra-Etikettendrucker über einen
+  MQTT-Druckdienst, auf dem Broker, den Home Assistant ohnehin nutzt
 - Sensoren, Binärsensoren, To-do-Liste, Kalender, Events und Aktionen für
   Dashboards und Automationen
 - Lovelace-Karte zum Erfassen, Vertagen und Auslassen direkt im Dashboard,
@@ -305,6 +307,47 @@ erst, wenn Home Assistant die neuen Dateien geladen hat. Der Reihe nach:
 Als Rückfalloption lässt sich das Modul auch von Hand unter **Einstellungen →
 Dashboards → Drei-Punkte-Menü → Ressourcen** als JavaScript-Modul mit der URL
 `/medication_reminder_frontend/medication-reminder-card.js` eintragen.
+
+## Etiketten drucken
+
+Jeder QR-Code im Panel lässt sich auf einem Zebra-Etikettendrucker ausgeben,
+damit ein Medikament, eine Packung oder eine offene Einnahme ihren Scan-Code
+selbst trägt.
+
+Der Druck läuft über [labelprint](https://github.com/Finnlife/labelprint), einen
+MQTT-Druckdienst, auf dem Broker, mit dem Home Assistant ohnehin verbunden ist.
+Die Integration hält keine eigenen Zugangsdaten: Richte die **MQTT**-Integration
+in Home Assistant ein, hänge den Druckdienst an denselben Broker und schalte den
+Druck unter **Einstellungen → Geräte & Dienste → Medication Reminder →
+Konfigurieren** ein.
+
+| Option | Standard | Bedeutung |
+| --- | --- | --- |
+| Etiketten über MQTT drucken | aus | Ergänzt bei jedem QR-Code einen Druck-Button |
+| Basis-Topic | `labelprint` | Aufträge gehen an `<Basis-Topic>/print`, Antworten kommen auf `<Basis-Topic>/result` |
+| Vorlage | `qr_nickname` | Vorlage des Druckdienstes; `qr_nickname` druckt den Code mit dem Namen daneben |
+| Etikettengröße | leer | Eine dem Druckdienst bekannte Größe; leer nutzt dessen Standard |
+| Kopien je Druck | 1 | Wie viele Kopien ein Druck erzeugt |
+
+Ein Druck sendet nichts außer dem Scan-Code und dem darüber angezeigten Namen,
+also etwa dem Medikamentennamen oder einem Packungs-Spitznamen:
+
+```json
+{
+  "template": "qr_nickname",
+  "data": { "code": "med23456", "name": "Magnesium" },
+  "copies": 1,
+  "job_id": "medication_reminder_1f3c9a2b4d5e"
+}
+```
+
+Das Panel wartet auf die Antwort des Druckdienstes auf dem Result-Topic, ein
+fehlschlagender Drucker wird also gemeldet statt stillschweigend geschluckt.
+Kommt binnen 15 Sekunden keine Antwort, gilt der Auftrag als gesendet, aber
+unbestätigt — Home Assistant hat ihn ja abgeschickt.
+
+Der Druck-Button erscheint erst, wenn der Druck eingeschaltet ist, und bleibt
+deaktiviert, solange die MQTT-Integration fehlt.
 
 ## Verlauf exportieren
 

@@ -1,10 +1,30 @@
-// Generate a small, self-contained icon map for the screenshot harness so the
-// capture run needs no npm dependency beyond Playwright.
-import { readFileSync, writeFileSync } from "node:fs";
+/**
+ * Regenerate the vendored icon map for the screenshot harness.
+ *
+ * Collects every `mdi:` icon the panel and the card reference and writes their
+ * path data to docs/screenshot/icons.js, so capturing screenshots needs no icon
+ * package at run time. It fails on a name Material Design Icons does not know,
+ * which is worth knowing: an unknown name renders as an empty box in Home
+ * Assistant without any error.
+ *
+ * Usage: npm install --no-save @mdi/js && node scripts/generate-icons.mjs
+ */
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import * as mdi from "@mdi/js";
 
-const names = readFileSync(process.argv[2], "utf8")
-  .split("\n").map((line) => line.trim()).filter(Boolean);
+const ROOT = resolve(import.meta.dirname, "..");
+const FRONTEND = resolve(ROOT, "custom_components/medication_reminder/frontend");
+const OUTPUT = resolve(ROOT, "docs/screenshot/icons.js");
+
+const names = [
+  ...new Set(
+    readdirSync(FRONTEND)
+      .filter((file) => file.endsWith(".js"))
+      .flatMap((file) =>
+        readFileSync(resolve(FRONTEND, file), "utf8").match(/mdi:[a-z0-9-]+/g) || []),
+  ),
+].sort();
 
 const toExport = (name) =>
   "mdi" + name.replace(/^mdi:/, "").split("-")
@@ -13,18 +33,19 @@ const toExport = (name) =>
 const entries = [];
 const missing = [];
 for (const name of names) {
-  const key = toExport(name);
-  const path = mdi[key];
-  if (!path) { missing.push(`${name} -> ${key}`); continue; }
-  entries.push([name, path]);
+  const path = mdi[toExport(name)];
+  if (path) entries.push([name, path]);
+  else missing.push(`${name} -> ${toExport(name)}`);
 }
 if (missing.length) {
-  console.error("Missing icons:", missing);
+  console.error("Material Design Icons has no such icon:", missing.join(", "));
   process.exit(1);
 }
 
 const body = entries.map(([name, path]) => `  "${name}":\n    "${path}",`).join("\n");
-const file = `/**
+writeFileSync(
+  OUTPUT,
+  `/**
  * Material Design Icons path data used by the screenshot harness.
  *
  * The icons come from the Material Design Icons project by Pictogrammers and
@@ -37,6 +58,6 @@ const file = `/**
 export const ICON_PATHS = Object.freeze({
 ${body}
 });
-`;
-writeFileSync(OUTPUT, file);
+`,
+);
 console.log(`wrote ${entries.length} icons to ${OUTPUT}`);

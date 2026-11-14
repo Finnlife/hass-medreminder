@@ -31,6 +31,7 @@ from .const import (
 )
 from .manager import MedicationManager
 from .models import resolve_intake_time
+from .printing import LabelPrinter
 from .websocket import async_register_websocket_api
 
 CARD_MODULE_URL = (
@@ -52,10 +53,15 @@ SERVICES = (
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Medication Reminder from a config entry."""
-    domain_data = hass.data.setdefault(DOMAIN, {"managers": {}})
+    domain_data = hass.data.setdefault(DOMAIN, {"managers": {}, "printers": {}})
+    domain_data.setdefault("printers", {})
     manager = MedicationManager(hass)
     await manager.async_initialize()
     domain_data["managers"][entry.entry_id] = manager
+    domain_data["printers"][entry.entry_id] = LabelPrinter(hass, entry.options)
+
+    # Changing the printing options has to reach the panel, so reload the entry.
+    entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
 
     if not domain_data.get("api_registered"):
         async_register_websocket_api(hass)
@@ -112,6 +118,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
     manager: MedicationManager = hass.data[DOMAIN]["managers"].pop(entry.entry_id)
+    hass.data[DOMAIN].get("printers", {}).pop(entry.entry_id, None)
     await manager.async_close()
     if not hass.data[DOMAIN]["managers"]:
         frontend.async_remove_panel(hass, PANEL_URL)
@@ -123,6 +130,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.services.async_remove(DOMAIN, service)
         hass.data[DOMAIN]["api_registered"] = False
     return True
+
+
+async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Apply changed options."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_remove_config_entry_device(

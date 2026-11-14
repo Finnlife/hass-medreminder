@@ -36,7 +36,7 @@ before it lands, but this is worth knowing when you judge how much to trust the
 code — please read it yourself before running it on an instance you care about,
 and see the caution above regarding real medication.
 
-## Implemented features (v0.7.6)
+## Implemented features (v0.8.0)
 
 - Medication records with manufacturer, barcode/product code, strength, dosage
   form, stock unit, warning threshold, and notes; creating one immediately opens
@@ -66,6 +66,8 @@ and see the caution above regarding real medication.
 - Locally generated, high-contrast QR codes for medications, packages, and open
   intake tickets; the generator accepts only stable eight-character identifiers
   such as `med7K2QF`, never a URL or medication data
+- Printing those QR codes on a Zebra label printer through an MQTT print
+  service, over the broker Home Assistant already uses
 - Sensors, binary sensors, a to-do list, a calendar, events, and actions for
   dashboards and automations
 - A Lovelace card that records, snoozes and skips due intakes straight from a
@@ -291,6 +293,46 @@ after Home Assistant has loaded the new files. In order:
 As a fallback the module can also be added by hand under **Settings →
 Dashboards → three-dot menu → Resources**, as a JavaScript module with the URL
 `/medication_reminder_frontend/medication-reminder-card.js`.
+
+## Printing labels
+
+Every QR code in the panel can be printed on a Zebra label printer, so a
+medication, a package or an open intake carries its own scan code.
+
+Printing goes through [labelprint](https://github.com/Finnlife/labelprint), an
+MQTT print service, on the broker Home Assistant is already connected to. The
+integration keeps no broker credentials of its own: set up the **MQTT**
+integration in Home Assistant, point the print service at the same broker, and
+switch printing on under **Settings → Devices & services → Medication Reminder →
+Configure**.
+
+| Option | Default | Description |
+| --- | --- | --- |
+| Print labels over MQTT | off | Adds a print button to every QR code |
+| Base topic | `labelprint` | Jobs go to `<base topic>/print`, answers arrive on `<base topic>/result` |
+| Template | `qr_nickname` | Template of the print service; `qr_nickname` prints the code with the name beside it |
+| Label size | empty | A label size the print service knows; empty uses its default |
+| Copies per print | 1 | How many copies one press produces |
+
+A press sends nothing but the scan code and the name shown above it, for example
+the medication name or a package nickname:
+
+```json
+{
+  "template": "qr_nickname",
+  "data": { "code": "med23456", "name": "Magnesium" },
+  "copies": 1,
+  "job_id": "medication_reminder_1f3c9a2b4d5e"
+}
+```
+
+The panel waits for the print service to answer on the result topic, so a
+failing printer is reported instead of silently swallowed. If no answer arrives
+within 15 seconds the job is reported as sent but unconfirmed, because it did
+leave Home Assistant.
+
+The print button only appears once printing is switched on, and stays disabled
+while the MQTT integration is missing.
 
 ## History export
 
