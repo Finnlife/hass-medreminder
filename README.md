@@ -278,7 +278,10 @@ The card module is registered by the integration itself, so it only appears
 after Home Assistant has loaded the new files. In order:
 
 1. **Restart Home Assistant.** Copying the files or updating in HACS is not
-   enough — the module is registered while the integration starts.
+   enough, and neither is reloading the integration: Home Assistant keeps the
+   already imported Python modules, so a reload runs the previous version of the
+   code and registers the previous module URL with it. Only a restart loads the
+   new files.
 2. **Check that the file is served.** Open
    `/medication_reminder_frontend/medication-reminder-card.js` on your Home
    Assistant host. A 404 means the update did not reach the `custom_components`

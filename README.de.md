@@ -291,7 +291,10 @@ Das Kartenmodul wird von der Integration selbst registriert und erscheint daher
 erst, wenn Home Assistant die neuen Dateien geladen hat. Der Reihe nach:
 
 1. **Home Assistant neu starten.** Dateien kopieren oder in HACS aktualisieren
-   reicht nicht — das Modul wird beim Start der Integration registriert.
+   reicht nicht, und die Integration neu zu laden ebenso wenig: Home Assistant
+   behält die bereits importierten Python-Module, ein Reload führt also weiter
+   den alten Code aus und registriert auch dessen alte Modul-URL. Erst ein
+   Neustart lädt die neuen Dateien.
 2. **Prüfen, ob die Datei ausgeliefert wird.** Rufe
    `/medication_reminder_frontend/medication-reminder-card.js` auf deiner
    Home-Assistant-Adresse auf. Ein 404 heißt, das Update ist nicht im
