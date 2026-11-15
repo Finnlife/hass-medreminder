@@ -8,6 +8,14 @@ Entries are grouped as **Added**, **Changed**, **Fixed** and **Removed**, newest
 version first. Versions follow the manifest, and the project is still pre-1.0:
 the storage compatibility contract is not final until version 1.0.
 
+## 0.8.1
+
+### Fixed
+
+- The gear icon on the integration page jumped to the Medications panel instead
+  of opening the options, so label printing could not be configured at all. The
+  panel no longer claims to be the configuration page of the integration.
+
 ## 0.8.0
 
 ### Added

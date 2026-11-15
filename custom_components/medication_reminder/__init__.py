@@ -93,7 +93,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             sidebar_icon="mdi:pill-multiple",
             require_admin=False,
             config={},
-            config_panel_domain=DOMAIN,
         )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
