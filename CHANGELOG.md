@@ -8,6 +8,14 @@ Entries are grouped as **Added**, **Changed**, **Fixed** and **Removed**, newest
 version first. Versions follow the manifest, and the project is still pre-1.0:
 the storage compatibility contract is not final until version 1.0.
 
+## 0.9.1
+
+### Changed
+
+- An automatic package nickname is now drawn at random from the names no open
+  package is using, instead of taking the next one in the list, so packages
+  added one after another no longer get names that look alike.
+
 ## 0.9.0
 
 ### Changed

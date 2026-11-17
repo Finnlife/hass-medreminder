@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import random
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -983,18 +984,25 @@ class MedicationManager:
         }
 
     def _next_package_nickname(self) -> str:
-        """Pick a name no other package in this instance is using."""
+        """Pick a random name no other package in this instance is using.
+
+        Drawing at random rather than walking the list keeps consecutive
+        packages from getting names that look alike.
+        """
         used = self._nicknames_in_use()
-        for nickname in PACKAGE_NICKNAMES:
-            if nickname.casefold() not in used:
-                return nickname
+        free = [name for name in PACKAGE_NICKNAMES if name.casefold() not in used]
+        if free:
+            return random.choice(free)
         # More open packages than names: keep counting up rather than give up.
         suffix = 2
         while True:
-            for nickname in PACKAGE_NICKNAMES:
-                candidate = f"{nickname} {suffix}"
-                if candidate.casefold() not in used:
-                    return candidate
+            free = [
+                f"{name} {suffix}"
+                for name in PACKAGE_NICKNAMES
+                if f"{name} {suffix}".casefold() not in used
+            ]
+            if free:
+                return random.choice(free)
             suffix += 1
 
     # ------------------------------------------------------------------

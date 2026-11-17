@@ -71,6 +71,7 @@ _install_home_assistant_stubs()
 manager_module = _import_component_module("manager")
 models_module = _import_component_module("models")
 migrations_module = _import_component_module("migrations")
+const_module = _import_component_module("const")
 
 
 class FakeBus:
@@ -220,9 +221,12 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
         packages = [
             item for item in manager.data["packages"] if item["medication_id"] == "a"
         ]
-        self.assertEqual("Amber", created["nickname"])
+        self.assertIn(created["nickname"], const_module.PACKAGE_NICKNAMES)
         self.assertRegex(created["scan_code"], r"^med[A-Z2-9]{5}$")
-        self.assertEqual({"Base A", "Amber"}, {item["nickname"] for item in packages})
+        self.assertEqual(
+            {"Base A", created["nickname"]},
+            {item["nickname"] for item in packages},
+        )
         self.assertEqual(15.0, manager.data["medications"][0]["stock"])
         self.assertEqual("packages", manager.data["medications"][0]["stock_mode"])
 
