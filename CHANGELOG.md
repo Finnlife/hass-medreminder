@@ -8,6 +8,13 @@ Entries are grouped as **Added**, **Changed**, **Fixed** and **Removed**, newest
 version first. Versions follow the manifest, and the project is still pre-1.0:
 the storage compatibility contract is not final until version 1.0.
 
+## 0.9.2
+
+### Changed
+
+- The HACS validation now runs every check, including the brand assets, against
+  the icon the integration ships itself. Nothing changed in the integration.
+
 ## 0.9.1
 
 ### Changed
