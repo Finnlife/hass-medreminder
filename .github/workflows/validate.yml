@@ -77,7 +77,3 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # The brands check only applies to integrations that want to be part
-          # of the HACS default list, which needs a pull request against
-          # home-assistant/brands.
-          ignore: brands
