@@ -419,7 +419,7 @@ class MedicationManager:
                 normalized_raw["nickname"] = (
                     existing["nickname"]
                     if existing
-                    else self._next_package_nickname(medication_id)
+                    else self._next_package_nickname()
                 )
             package = normalize_package(normalized_raw, medication_id, existing)
             package["scan_code"] = (
@@ -427,13 +427,10 @@ class MedicationManager:
                 if existing and existing.get("scan_code")
                 else self._new_scan_code(f"packages:{package['id']}")
             )
-            if any(
-                other["medication_id"] == medication_id
-                and other["id"] != package["id"]
-                and other["nickname"].casefold() == package["nickname"].casefold()
-                for other in self.data["packages"]
+            if package["remaining_quantity"] > 0 and (
+                package["nickname"].casefold() in self._nicknames_in_use(package["id"])
             ):
-                raise ValueError("Package nickname must be unique per medication")
+                raise ValueError("Package nickname is already in use")
             package["created_at"] = (
                 existing.get("created_at") if existing else dt_util.now().isoformat()
             )
@@ -972,21 +969,33 @@ class MedicationManager:
         for medication in self.data["medications"]:
             self._recalculate_package_stock(medication["id"])
 
-    def _next_package_nickname(self, medication_id: str) -> str:
-        used = {
+    def _nicknames_in_use(self, except_package_id: str = "") -> set[str]:
+        """Return the folded nicknames of every package that still holds stock.
+
+        An empty package releases its name again, so the pool cannot run dry,
+        while a nickname always points at exactly one box that can be picked up.
+        """
+        return {
             package["nickname"].casefold()
-            for package in self._packages_for(medication_id)
+            for package in self.data.get("packages", [])
+            if package["id"] != except_package_id
+            and float(package.get("remaining_quantity", 0)) > 0
         }
+
+    def _next_package_nickname(self) -> str:
+        """Pick a name no other package in this instance is using."""
+        used = self._nicknames_in_use()
         for nickname in PACKAGE_NICKNAMES:
             if nickname.casefold() not in used:
                 return nickname
-        index = len(used)
+        # More open packages than names: keep counting up rather than give up.
+        suffix = 2
         while True:
-            base = PACKAGE_NICKNAMES[index % len(PACKAGE_NICKNAMES)]
-            candidate = f"{base} {index + 1}"
-            if candidate.casefold() not in used:
-                return candidate
-            index += 1
+            for nickname in PACKAGE_NICKNAMES:
+                candidate = f"{nickname} {suffix}"
+                if candidate.casefold() not in used:
+                    return candidate
+            suffix += 1
 
     # ------------------------------------------------------------------
     # Scheduling loop

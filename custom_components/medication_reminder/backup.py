@@ -77,7 +77,7 @@ def _validate_data(data: dict[str, Any]) -> None:
         if not str(medication.get("unit", "")).strip():
             raise ValueError("Medication stock unit is required")
 
-    package_names: set[tuple[str, str]] = set()
+    package_names: set[str] = set()
     for package in data["packages"]:
         medication_id = _reference(package.get("medication_id"), "package medication")
         if medication_id not in medication_ids:
@@ -85,10 +85,6 @@ def _validate_data(data: dict[str, Any]) -> None:
         nickname = str(package.get("nickname", "")).strip()
         if not nickname:
             raise ValueError("Package nickname is required")
-        name_key = (medication_id, nickname.casefold())
-        if name_key in package_names:
-            raise ValueError("Package nickname must be unique per medication")
-        package_names.add(name_key)
         initial = _non_negative(
             package.get("initial_quantity"), "package initial quantity"
         )
@@ -97,6 +93,11 @@ def _validate_data(data: dict[str, Any]) -> None:
         )
         if initial < remaining:
             raise ValueError("Package remaining quantity exceeds initial quantity")
+        # Only packages that still hold something need a name of their own.
+        if remaining > 0:
+            if nickname.casefold() in package_names:
+                raise ValueError("Package nickname is already in use")
+            package_names.add(nickname.casefold())
         _optional_date(package.get("expires_on"), "package expiry date")
 
     for regimen in data["regimens"]:

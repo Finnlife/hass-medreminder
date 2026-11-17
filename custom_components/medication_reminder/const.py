@@ -6,10 +6,10 @@ DOMAIN: Final = "medication_reminder"
 PLATFORMS: Final = ["binary_sensor", "calendar", "sensor", "todo"]
 STORAGE_KEY: Final = f"{DOMAIN}.data"
 STORAGE_VERSION: Final = 1
-STORAGE_MINOR_VERSION: Final = 6
+STORAGE_MINOR_VERSION: Final = 7
 PANEL_URL: Final = DOMAIN
 PANEL_STATIC_URL: Final = f"/{DOMAIN}_frontend"
-FRONTEND_CACHE_KEY: Final = "0.8.1"
+FRONTEND_CACHE_KEY: Final = "0.9.0"
 
 EVENT_DUE: Final = f"{DOMAIN}_due"
 EVENT_TAKEN: Final = f"{DOMAIN}_taken"
@@ -53,21 +53,28 @@ OPEN_STATUSES: Final = ("pending", "partial")
 CLOSED_STATUSES: Final = ("taken", "skipped", "missed")
 ALL_STATUSES: Final = OPEN_STATUSES + CLOSED_STATUSES
 
+# Memorable names for physical packages. A name is only ever handed out
+# once among the packages that still hold something, so a nickname always
+# points at exactly one box.
 PACKAGE_NICKNAMES: Final = (
-    "Apollo",
-    "Bumblebee",
-    "Comet",
-    "Daisy",
-    "Echo",
-    "Foxy",
-    "Kiwi",
-    "Mochi",
-    "Nova",
-    "Pebble",
-    "Pixel",
-    "Rocket",
-    "Sunny",
-    "Tango",
-    "Yoshi",
-    "Ziggy",
+    "Amber", "Apollo", "Aspen", "Atlas",
+    "Banjo", "Basil", "Biscuit", "Bumblebee",
+    "Cedar", "Clover", "Cobalt", "Comet",
+    "Cosmo", "Daisy", "Delta", "Domino",
+    "Dusty", "Echo", "Ember", "Fable",
+    "Falcon", "Fern", "Fizz", "Foxy",
+    "Ginger", "Gizmo", "Hazel", "Hopper",
+    "Indigo", "Ivy", "Jasper", "Juniper",
+    "Kiwi", "Koda", "Lagoon", "Lemon",
+    "Lumen", "Mango", "Maple", "Marble",
+    "Mochi", "Monsoon", "Nimbus", "Nova",
+    "Nutmeg", "Olive", "Onyx", "Opal",
+    "Pebble", "Pepper", "Pixel", "Plum",
+    "Poppy", "Quartz", "Quill", "Raven",
+    "Rocket", "Rusty", "Saffron", "Sage",
+    "Scout", "Sorrel", "Sunny", "Tango",
+    "Thistle", "Topaz", "Truffle", "Tulip",
+    "Umber", "Vanilla", "Velvet", "Walnut",
+    "Willow", "Yarrow", "Yoshi", "Zephyr",
+    "Ziggy", "Zinnia",
 )

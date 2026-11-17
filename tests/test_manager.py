@@ -70,6 +70,7 @@ def _import_component_module(name: str):
 _install_home_assistant_stubs()
 manager_module = _import_component_module("manager")
 models_module = _import_component_module("models")
+migrations_module = _import_component_module("migrations")
 
 
 class FakeBus:
@@ -219,9 +220,9 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
         packages = [
             item for item in manager.data["packages"] if item["medication_id"] == "a"
         ]
-        self.assertEqual("Apollo", created["nickname"])
+        self.assertEqual("Amber", created["nickname"])
         self.assertRegex(created["scan_code"], r"^med[A-Z2-9]{5}$")
-        self.assertEqual({"Base A", "Apollo"}, {item["nickname"] for item in packages})
+        self.assertEqual({"Base A", "Amber"}, {item["nickname"] for item in packages})
         self.assertEqual(15.0, manager.data["medications"][0]["stock"])
         self.assertEqual("packages", manager.data["medications"][0]["stock_mode"])
 
@@ -975,6 +976,75 @@ class IntakeTimeResolutionTests(unittest.TestCase):
 
     def test_without_any_option_the_intake_is_due_now(self) -> None:
         self.assertEqual(self.now, self.resolve({}))
+
+
+class NicknameUniquenessTests(unittest.IsolatedAsyncioTestCase):
+    """A nickname has to point at exactly one open package."""
+
+    def build(self):
+        manager = manager_module.MedicationManager(FakeHass())
+        manager.data = {
+            "medications": [
+                {"id": "a", "name": "A", "unit": "pieces", "stock": 0.0,
+                 "stock_mode": "packages", "low_stock_threshold": 0.0},
+                {"id": "b", "name": "B", "unit": "pieces", "stock": 0.0,
+                 "stock_mode": "packages", "low_stock_threshold": 0.0},
+            ],
+            "packages": [], "regimens": [], "occurrences": [],
+            "last_generated_at": None,
+        }
+        return manager
+
+    async def test_the_same_name_is_refused_across_medications(self) -> None:
+        manager = self.build()
+        created = await manager.async_save_package(
+            {"medication_id": "a", "quantity": 5, "nickname": "Amber"}
+        )
+        self.assertEqual("Amber", created["nickname"])
+        with self.assertRaises(ValueError):
+            await manager.async_save_package(
+                {"medication_id": "b", "quantity": 5, "nickname": "amber"}
+            )
+
+    async def test_automatic_names_never_repeat(self) -> None:
+        manager = self.build()
+        names = []
+        for _ in range(12):
+            created = await manager.async_save_package(
+                {"medication_id": "a", "quantity": 5, "nickname": ""}
+            )
+            names.append(created["nickname"])
+        self.assertEqual(len(names), len({name.casefold() for name in names}))
+
+    async def test_an_empty_package_releases_its_name(self) -> None:
+        manager = self.build()
+        await manager.async_save_package(
+            {"medication_id": "a", "quantity": 5, "nickname": "Amber"}
+        )
+        # Use it up: the stored package is what counts, not the returned copy.
+        manager.data["packages"][0]["remaining_quantity"] = 0
+        reused = await manager.async_save_package(
+            {"medication_id": "b", "quantity": 5, "nickname": "Amber"}
+        )
+        self.assertEqual("Amber", reused["nickname"])
+
+    def test_the_upgrade_numbers_duplicate_names(self) -> None:
+        data = migrations_module.ensure_current_data(
+            {
+                "medications": [],
+                "packages": [
+                    {"id": "1", "medication_id": "a", "nickname": "Amber",
+                     "remaining_quantity": 5, "initial_quantity": 5},
+                    {"id": "2", "medication_id": "b", "nickname": "Amber",
+                     "remaining_quantity": 5, "initial_quantity": 5},
+                    {"id": "3", "medication_id": "c", "nickname": "Amber",
+                     "remaining_quantity": 0, "initial_quantity": 5},
+                ],
+                "regimens": [], "occurrences": [],
+            }
+        )
+        names = [package["nickname"] for package in data["packages"]]
+        self.assertEqual(["Amber", "Amber 2", "Amber"], names)
 
 
 if __name__ == "__main__":

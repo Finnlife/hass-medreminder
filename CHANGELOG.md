@@ -8,6 +8,20 @@ Entries are grouped as **Added**, **Changed**, **Fixed** and **Removed**, newest
 version first. Versions follow the manifest, and the project is still pre-1.0:
 the storage compatibility contract is not final until version 1.0.
 
+## 0.9.0
+
+### Changed
+
+- A package nickname now has to be unique across the whole instance rather than
+  only within one medication, so a nickname always points at exactly one box.
+  Only packages that still hold stock take part, so an empty package releases
+  its name again and the pool cannot run dry. Existing data with a name used
+  twice is numbered during the upgrade.
+- The pool grew from 16 to 78 names, and the automatic pick now draws from the
+  names no open package is using.
+- The nickname field no longer offers a dropdown. Either type a name or leave it
+  empty for an automatic one; both end up unique.
+
 ## 0.8.1
 
 ### Fixed

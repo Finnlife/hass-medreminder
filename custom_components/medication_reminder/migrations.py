@@ -72,8 +72,34 @@ def ensure_current_data(raw: dict[str, Any] | None) -> dict[str, Any]:
         for item in occurrence.get("items", []):
             item.setdefault("allocations", [])
             item.setdefault("taken_dose", 0)
+    _make_active_nicknames_unique(data)
     ensure_scan_codes(data)
     return data
+
+
+def _make_active_nicknames_unique(data: dict[str, Any]) -> None:
+    """Give every package that still holds stock a nickname of its own.
+
+    Nicknames used to be unique per medication, so older data can hold the same
+    name twice. A nickname has to point at exactly one box, so later duplicates
+    are numbered instead of being left ambiguous.
+    """
+    taken: set[str] = set()
+    for package in data["packages"]:
+        nickname = str(package.get("nickname", "")).strip()
+        if float(package.get("remaining_quantity", 0) or 0) <= 0:
+            continue
+        if not nickname:
+            nickname = "Package"
+        if nickname.casefold() not in taken:
+            taken.add(nickname.casefold())
+            package["nickname"] = nickname
+            continue
+        suffix = 2
+        while f"{nickname} {suffix}".casefold() in taken:
+            suffix += 1
+        package["nickname"] = f"{nickname} {suffix}"
+        taken.add(package["nickname"].casefold())
 
 
 def _migrate_stock_to_packages(data: dict[str, Any]) -> None:

@@ -4,10 +4,6 @@ import { PANEL_STYLES } from "./styles.js";
 const DAY_KEYS = [
   "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
 ];
-const PACKAGE_NICKNAMES = [
-  "Apollo", "Bumblebee", "Comet", "Daisy", "Echo", "Foxy", "Kiwi", "Mochi",
-  "Nova", "Pebble", "Pixel", "Rocket", "Sunny", "Tango", "Yoshi", "Ziggy",
-];
 const OPEN_STATUSES = ["pending", "partial"];
 const CLOSED_STATUSES = ["taken", "skipped", "missed"];
 const POLL_INTERVAL = 20000;
@@ -264,7 +260,7 @@ class MedicationReminderPanel extends HTMLElement {
       "Time must use HH:MM": "error.invalid_time_generic",
       "Invalid time": "error.invalid_time_generic",
       "Package quantity must be greater than zero": "error.package_quantity",
-      "Package nickname must be unique per medication": "error.package_nickname",
+      "Package nickname is already in use": "error.package_nickname",
       "Intake time must not be in the future": "error.unplanned_future",
       "Only untouched open intakes can shift their cycle": "error.interval_only",
       "Only interval schedules can shift their cycle": "error.interval_only",
@@ -894,8 +890,7 @@ class MedicationReminderPanel extends HTMLElement {
           </select>
           ${item.id ? `<input type="hidden" name="medication_id" value="${esc(medicationId)}">` : ""}</label>
         <label class="field"><span>${this.t("package_form.nickname")}</span>
-          <input name="nickname" list="package-nicknames" value="${esc(item.nickname || "")}">
-          <datalist id="package-nicknames">${PACKAGE_NICKNAMES.map((name) => `<option value="${name}"></option>`).join("")}</datalist>
+          <input name="nickname" value="${esc(item.nickname || "")}" autocomplete="off">
           <small class="muted">${this.t("package_form.nickname_help")}</small></label>
         ${item.id
           ? this.field("remaining_quantity", `${this.t("package_form.remaining")} (${unit})`, item.remaining_quantity, { required: true, type: "number", min: "0", step: "0.001" })
