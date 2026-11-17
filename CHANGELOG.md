@@ -8,6 +8,14 @@ Entries are grouped as **Added**, **Changed**, **Fixed** and **Removed**, newest
 version first. Versions follow the manifest, and the project is still pre-1.0:
 the storage compatibility contract is not final until version 1.0.
 
+## 0.9.3
+
+### Added
+
+- The manifest lists the integration under Health & wellbeing and under
+  Calendars & to-dos, so Home Assistant can file it in the matching category
+  when browsing integrations.
+
 ## 0.9.2
 
 ### Changed
