@@ -14,7 +14,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .const import DOMAIN, MAX_LISTED_INTAKES
 from .entity import MedicationEntity, MedicationReminderEntity
 from .manager import MedicationManager
 
@@ -133,9 +133,12 @@ class OverdueIntakesSensor(MedicationReminderEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         due = self.manager.due_occurrences()
+        # The recorder keeps every attribute change, so only the first intakes
+        # are listed; the count still covers all of them.
+        listed = due[:MAX_LISTED_INTAKES]
         return {
             "count": len(due),
-            "occurrence_ids": [item["id"] for item in due],
-            "summaries": [self.manager.occurrence_label(item) for item in due],
+            "occurrence_ids": [item["id"] for item in listed],
+            "summaries": [self.manager.occurrence_label(item) for item in listed],
             "oldest_due": due[0]["scheduled_at"] if due else None,
         }

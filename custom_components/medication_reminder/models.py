@@ -18,6 +18,9 @@ from .schedule import INTERVAL, WEEKLY, parse_time
 
 MAX_NOTES_LENGTH = 2000
 MAX_TEXT_LENGTH = 200
+# Every time of day is one intake, and the calendar and the catch-up after a
+# restart walk all of them, so a plan cannot ask for more than one an hour.
+MAX_TIMES_PER_DAY = 24
 
 
 def new_id() -> str:
@@ -40,25 +43,25 @@ def normalize_medication(
     raw: dict[str, Any], existing_id: str | None = None
 ) -> dict[str, Any]:
     """Validate and normalize a medication."""
-    name = _text(raw.get("name"), "name")
+    name = text_field(raw.get("name"), "name")
     if not name:
         raise ValueError("Name is required")
-    unit = _text(raw.get("unit", "pieces"), "unit") or "pieces"
+    unit = text_field(raw.get("unit", "pieces"), "unit") or "pieces"
     threshold = _non_negative_number(
         raw.get("low_stock_threshold", 0), "low_stock_threshold"
     )
     return {
         "id": existing_id or str(raw.get("id") or new_id()),
         "name": name,
-        "manufacturer": _text(raw.get("manufacturer"), "manufacturer"),
-        "barcode": _text(raw.get("barcode"), "barcode"),
-        "form": _text(raw.get("form"), "form"),
-        "strength": _text(raw.get("strength"), "strength"),
+        "manufacturer": text_field(raw.get("manufacturer"), "manufacturer"),
+        "barcode": text_field(raw.get("barcode"), "barcode"),
+        "form": text_field(raw.get("form"), "form"),
+        "strength": text_field(raw.get("strength"), "strength"),
         "unit": unit,
         "stock": 0,
         "stock_mode": "packages",
         "low_stock_threshold": threshold,
-        "notes": _text(raw.get("notes"), "notes", MAX_NOTES_LENGTH),
+        "notes": text_field(raw.get("notes"), "notes", MAX_NOTES_LENGTH),
     }
 
 
@@ -66,9 +69,9 @@ def normalize_package(
     raw: dict[str, Any], medication_id: str, existing: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     """Validate and normalize one physical medication package."""
-    nickname = _text(raw.get("nickname"), "nickname")
-    lot_number = _text(raw.get("lot_number"), "lot_number")
-    expires_on = _text(raw.get("expires_on"), "expires_on")
+    nickname = text_field(raw.get("nickname"), "nickname")
+    lot_number = text_field(raw.get("lot_number"), "lot_number")
+    expires_on = text_field(raw.get("expires_on"), "expires_on")
     if expires_on:
         date.fromisoformat(expires_on)
     remaining = _non_negative_number(
@@ -87,7 +90,7 @@ def normalize_package(
         "nickname": nickname,
         "lot_number": lot_number,
         "expires_on": expires_on or None,
-        "external_code": _text(raw.get("external_code"), "external_code"),
+        "external_code": text_field(raw.get("external_code"), "external_code"),
         "initial_quantity": round(initial, 3),
         "remaining_quantity": remaining,
         "created_at": existing.get("created_at") if existing else None,
@@ -98,7 +101,7 @@ def normalize_regimen(
     raw: dict[str, Any], medication_ids: set[str], existing_id: str | None = None
 ) -> dict[str, Any]:
     """Validate and normalize an intake regimen."""
-    name = _text(raw.get("name"), "name")
+    name = text_field(raw.get("name"), "name")
     if not name:
         raise ValueError("Name is required")
     items: list[dict[str, Any]] = []
@@ -126,7 +129,7 @@ def normalize_regimen(
         "schedule": schedule,
         **normalize_reminder(raw),
         "active": bool(raw.get("active", True)),
-        "instructions": _text(
+        "instructions": text_field(
             raw.get("instructions"), "instructions", MAX_NOTES_LENGTH
         ),
     }
@@ -234,11 +237,11 @@ def ad_hoc_occurrence(
     return {
         "id": new_id(),
         "regimen_id": None,
-        "regimen_name": _text(title, "title") or "Intake",
+        "regimen_name": text_field(title, "title") or "Intake",
         "unplanned": False,
         "ad_hoc": True,
-        "reason": _text(reason, "reason", MAX_NOTES_LENGTH),
-        "reference": _text(reference, "reference"),
+        "reason": text_field(reason, "reason", MAX_NOTES_LENGTH),
+        "reference": text_field(reference, "reference"),
         "reminder": reminder,
         "scheduled_at": scheduled_at.isoformat(),
         "status": "pending",
@@ -274,7 +277,13 @@ def normalize_schedule(raw: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("Unsupported schedule type")
         for day in range(7):
             values = raw_days.get(str(day), raw_days.get(day, []))
+            if not isinstance(values, list):
+                raise ValueError("Schedule times must be a list")
             normalized = sorted({_time_text(value) for value in values})
+            if len(normalized) > MAX_TIMES_PER_DAY:
+                raise ValueError(
+                    f"A day can hold at most {MAX_TIMES_PER_DAY} intake times"
+                )
             if normalized:
                 days[str(day)] = normalized
         if not days:
@@ -299,8 +308,13 @@ def _time_text(value: Any) -> str:
     return f"{parsed.hour:02d}:{parsed.minute:02d}"
 
 
-def _text(value: Any, field: str, limit: int = MAX_TEXT_LENGTH) -> str:
-    text = str(value or "").strip()
+def text_field(value: Any, field: str, limit: int = MAX_TEXT_LENGTH) -> str:
+    """Return a stripped text value, rejecting anything that is not plain text."""
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list, tuple, set, bool)):
+        raise ValueError(f"{field} must be text")
+    text = str(value).strip()
     if len(text) > limit:
         raise ValueError(f"{field} is too long")
     return text

@@ -55,6 +55,13 @@ from .storage import MedicationStore
 
 _LOGGER = logging.getLogger(__name__)
 
+# Longest window the calendar may ask for in one request.
+MAX_CALENDAR_RANGE = timedelta(days=366)
+# Smallest repeat interval a plan accepts, see normalize_reminder.
+MIN_REPEAT_MINUTES = 5
+# An open intake older than this is closed as missed.
+MAX_OPEN_AGE = timedelta(days=CATCHUP_DAYS)
+
 
 class MedicationManager:
     """Own persistent state, reminders and domain invariants."""
@@ -175,6 +182,10 @@ class MedicationManager:
         self, start: datetime, end: datetime
     ) -> list[dict[str, Any]]:
         """Return planned intakes in a window, for the calendar entity."""
+        # Any user can ask the calendar for an arbitrary range, and every day
+        # in it is walked, so a request is cut to a year rather than allowed to
+        # stall the event loop.
+        end = min(end, start + MAX_CALENDAR_RANGE)
         events: list[dict[str, Any]] = []
         for regimen in self.data["regimens"]:
             if not regimen.get("active", True):
@@ -1081,11 +1092,15 @@ class MedicationManager:
             if due > now:
                 continue
             settings = self._reminder_for(occurrence)
-            if settings is None:
+            # An intake nobody answered for this long is not coming back. It is
+            # closed even without a miss timeout, so open tickets cannot pile up
+            # without limit.
+            abandoned = now >= due + MAX_OPEN_AGE
+            if settings is None and not abandoned:
                 continue
             title = occurrence.get("regimen_name") or ""
-            auto_miss = _setting(settings, "auto_miss_after_minutes")
-            if auto_miss and now >= due + timedelta(minutes=auto_miss):
+            auto_miss = _setting(settings or {}, "auto_miss_after_minutes")
+            if abandoned or (auto_miss and now >= due + timedelta(minutes=auto_miss)):
                 occurrence["status"] = "missed"
                 occurrence["taken_at"] = None
                 occurrence["snoozed_until"] = None
@@ -1110,8 +1125,13 @@ class MedicationManager:
             if snoozed is None and window and now > due + timedelta(minutes=window):
                 continue
             last = _parse_optional_datetime(occurrence.get("last_reminded_at"))
+            # Never below the smallest interval a plan accepts, even for data
+            # restored from an older version, so a reminder cannot fire every tick.
             repeat = timedelta(
-                minutes=_setting(settings, "repeat_minutes", DEFAULT_REPEAT_MINUTES)
+                minutes=max(
+                    _setting(settings, "repeat_minutes", DEFAULT_REPEAT_MINUTES),
+                    MIN_REPEAT_MINUTES,
+                )
             )
             # An expired snooze is an explicit user request and always fires.
             if snoozed is None and last and dt_util.as_local(last) + repeat > now:

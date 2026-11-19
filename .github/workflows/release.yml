@@ -22,15 +22,18 @@ jobs:
     name: Publish the manifest version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          # The release is created through gh with its own token, so nothing
+          # later in the job needs git credentials left in the workspace.
+          persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.13"
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "24"
 
@@ -38,7 +41,14 @@ jobs:
         id: version
         run: |
           version=$(python -c "import json; print(json.load(open('custom_components/medication_reminder/manifest.json'))['version'])")
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Manifest version '$version' is not MAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          # Later steps read it from the environment rather than having it
+          # expanded into their scripts.
+          echo "VERSION=$version" >> "$GITHUB_ENV"
           echo "Manifest version: $version"
 
       - name: Check whether this version was already released
@@ -46,9 +56,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view "${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+          if gh release view "${VERSION}" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release ${{ steps.version.outputs.version }} already exists, nothing to do."
+            echo "Release ${VERSION} already exists, nothing to do."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
@@ -56,7 +66,7 @@ jobs:
       - name: Take the release notes from the changelog
         if: steps.existing.outputs.exists == 'false'
         run: |
-          python scripts/changelog-section.py "${{ steps.version.outputs.version }}" \
+          python scripts/changelog-section.py "${VERSION}" \
             --output release-notes.md
           cat release-notes.md
 
@@ -93,7 +103,7 @@ jobs:
 
       - name: Validate the Home Assistant manifest
         if: steps.existing.outputs.exists == 'false'
-        uses: home-assistant/actions/hassfest@master
+        uses: home-assistant/actions/hassfest@07f46fd2e19967768b5fd3000f91f857452b767c # master
 
       - name: Build a zip for manual installation
         if: steps.existing.outputs.exists == 'false'
@@ -110,11 +120,11 @@ jobs:
           if [ -n "$previous" ]; then
             {
               echo
-              echo "**Full changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${previous}...${{ steps.version.outputs.version }}"
+              echo "**Full changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${previous}...${VERSION}"
             } >> release-notes.md
           fi
-          gh release create "${{ steps.version.outputs.version }}" \
+          gh release create "${VERSION}" \
             --target "$GITHUB_SHA" \
-            --title "${{ steps.version.outputs.version }}" \
+            --title "${VERSION}" \
             --notes-file release-notes.md \
             medication_reminder.zip

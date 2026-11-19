@@ -39,6 +39,11 @@ class BackupTests(unittest.TestCase):
                 {
                     "id": "m",
                     "name": "Medicine",
+                    "manufacturer": "",
+                    "barcode": "",
+                    "form": "",
+                    "strength": "",
+                    "notes": "",
                     "unit": "pieces",
                     "stock": 4,
                     "stock_mode": "packages",
@@ -178,6 +183,64 @@ class BackupTests(unittest.TestCase):
         envelope["data"]["regimens"][0]["scripts"] = ["all"]
         with self.assertRaisesRegex(ValueError, "script entities"):
             backup.prepare_backup_import(envelope)
+
+
+    def test_an_id_that_could_break_out_of_markup_is_rejected(self) -> None:
+        download = backup.build_backup_download(self.data, datetime.now(timezone.utc))
+        envelope = json.loads(download["content"])
+        envelope["data"]["occurrences"][0]["id"] = '"><img src=x onerror=alert(1)>'
+        with self.assertRaisesRegex(ValueError, "IDs"):
+            backup.prepare_backup_import(envelope)
+
+    def test_imported_fields_follow_the_rules_of_a_normal_save(self) -> None:
+        download = backup.build_backup_download(self.data, datetime.now(timezone.utc))
+        envelope = json.loads(download["content"])
+        envelope["data"]["medications"][0]["name"] = {"not": "text"}
+        with self.assertRaisesRegex(ValueError, "must be text"):
+            backup.prepare_backup_import(envelope)
+
+        envelope = json.loads(download["content"])
+        envelope["data"]["regimens"][0]["reminder_window_minutes"] = "<b>"
+        with self.assertRaises(ValueError):
+            backup.prepare_backup_import(envelope)
+
+        envelope = json.loads(download["content"])
+        envelope["data"]["regimens"][0]["schedule"]["days"]["0"] = [
+            f"{hour:02d}:{minute:02d}" for hour in range(24) for minute in (0, 30)
+        ]
+        with self.assertRaisesRegex(ValueError, "at most 24"):
+            backup.prepare_backup_import(envelope)
+
+    def test_a_one_off_reminder_cannot_fire_every_tick(self) -> None:
+        download = backup.build_backup_download(self.data, datetime.now(timezone.utc))
+        envelope = json.loads(download["content"])
+        occurrence = envelope["data"]["occurrences"][0]
+        occurrence["reminder"] = {"repeat_minutes": 0, "reminder_window_minutes": 0}
+        with self.assertRaisesRegex(ValueError, "repeat_minutes"):
+            backup.prepare_backup_import(envelope)
+
+    def test_an_open_one_off_intake_can_be_restored(self) -> None:
+        # It belongs to no plan, so it has no schedule to reference.
+        download = backup.build_backup_download(self.data, datetime.now(timezone.utc))
+        envelope = json.loads(download["content"])
+        occurrence = envelope["data"]["occurrences"][0]
+        occurrence.update(
+            {
+                "regimen_id": None,
+                "ad_hoc": True,
+                "status": "pending",
+                "taken_at": None,
+                "reason": "Sport",
+                "reminder": {"notify_services": ["notify.phone"]},
+            }
+        )
+        for item in occurrence["items"]:
+            item.update({"taken_dose": 0, "allocations": [], "taken_at": None})
+        restored = backup.prepare_backup_import(envelope)
+        self.assertEqual("Sport", restored["occurrences"][0]["reason"])
+        self.assertEqual(
+            ["notify.phone"], restored["occurrences"][0]["reminder"]["notify_services"]
+        )
 
 
 if __name__ == "__main__":

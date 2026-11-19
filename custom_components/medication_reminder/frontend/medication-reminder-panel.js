@@ -323,13 +323,13 @@ class MedicationReminderPanel extends HTMLElement {
         <button class="primary" data-action="new-regimen">
           <ha-icon icon="mdi:plus"></ha-icon><span>${this.t("regimens.create")}</span>
         </button>
-        <button class="icon" data-action="refresh" title="${this.t("app.refresh")}">
+        <button class="icon" data-action="refresh" title="${esc(this.t("app.refresh"))}">
           <ha-icon icon="mdi:refresh"></ha-icon>
         </button>
-        <button class="icon" data-action="data-management" title="${this.t("app.data_management")}">
+        <button class="icon" data-action="data-management" title="${esc(this.t("app.data_management"))}">
           <ha-icon icon="mdi:database-cog-outline"></ha-icon>
         </button>
-        <button class="icon danger" data-action="delete-all-data" title="${this.t("app.delete_all_data")}">
+        <button class="icon danger" data-action="delete-all-data" title="${esc(this.t("app.delete_all_data"))}">
           <ha-icon icon="mdi:delete-sweep-outline"></ha-icon>
         </button>
       </div>`;
@@ -344,8 +344,8 @@ class MedicationReminderPanel extends HTMLElement {
       ["history", "mdi:history", this.t("nav.history"), 0],
     ];
     this.$nav.innerHTML = tabs.map(([id, icon, label, count]) =>
-      `<button data-tab="${id}" class="${this.activeTab === id ? "active" : ""}">
-        <ha-icon icon="${icon}"></ha-icon><span>${label}</span>
+      `<button data-tab="${esc(id)}" class="${esc(this.activeTab === id ? "active" : "")}">
+        <ha-icon icon="${esc(icon)}"></ha-icon><span>${label}</span>
         ${count ? `<i class="count">${count}</i>` : ""}
       </button>`).join("");
   }
@@ -364,7 +364,7 @@ class MedicationReminderPanel extends HTMLElement {
     else if (this.activeTab === "history") this.$main.innerHTML = this.renderHistory();
     else this.$main.innerHTML = this.renderOverview();
     if (this.highlightId) {
-      const target = this.$main.querySelector(`[data-highlight="${this.highlightId}"]`);
+      const target = this.$main.querySelector(`[data-highlight="${esc(this.highlightId)}"]`);
       target?.scrollIntoView({ block: "center", behavior: "smooth" });
     }
   }
@@ -377,7 +377,7 @@ class MedicationReminderPanel extends HTMLElement {
   renderToast() {
     this.$toast.innerHTML = this.toast
       ? `<div class="toast ${this.toast.error ? "error" : ""}">
-          <ha-icon icon="${this.toast.error ? "mdi:alert-circle-outline" : "mdi:check-circle-outline"}"></ha-icon>
+          <ha-icon icon="${esc(this.toast.error ? "mdi:alert-circle-outline" : "mdi:check-circle-outline")}"></ha-icon>
           <span>${esc(this.toast.message)}</span>
         </div>`
       : "";
@@ -441,7 +441,7 @@ class MedicationReminderPanel extends HTMLElement {
         <div class="block-head"><h2>${this.t("overview.warnings")}</h2></div>
         <div class="card list">${warnings.map((warning) =>
           `<div class="row warning-row ${warning.level}">
-            <ha-icon icon="${warning.icon}"></ha-icon><span>${esc(warning.text)}</span>
+            <ha-icon icon="${esc(warning.icon)}"></ha-icon><span>${esc(warning.text)}</span>
           </div>`).join("")}</div>
       </section>` : ""}
       <section class="block">
@@ -517,7 +517,7 @@ class MedicationReminderPanel extends HTMLElement {
     const snoozed = item.snoozed_until && new Date(item.snoozed_until) > new Date();
     const overdue = this.isDue(item) && Date.now() - new Date(item.scheduled_at) > 3600000;
     return `<article class="card ticket ${this.highlightId === item.id ? "highlight" : ""}"
-        data-occurrence="${item.id}" data-highlight="${item.id}">
+        data-occurrence="${esc(item.id)}" data-highlight="${esc(item.id)}">
       <div class="ticket-head">
         <div>
           <div class="badges">
@@ -535,27 +535,27 @@ class MedicationReminderPanel extends HTMLElement {
       ${regimen?.instructions ? `<p class="hint"><ha-icon icon="mdi:information-outline"></ha-icon>${esc(regimen.instructions)}</p>` : ""}
       <div class="doses">${item.items.map((dose) => this.doseLine(dose)).join("")}</div>
       <div class="ticket-actions">
-        <button class="primary" data-action="take-selected" data-id="${item.id}">
+        <button class="primary" data-action="take-selected" data-id="${esc(item.id)}">
           <ha-icon icon="mdi:check"></ha-icon>${this.t("ticket.take_selection")}
         </button>
         <div class="chips">
           <span class="chip-label">${this.t("ticket.snooze")}</span>
-          <button class="chip" data-action="snooze" data-id="${item.id}" data-minutes="30">${this.t("ticket.snooze_30")}</button>
-          <button class="chip" data-action="snooze" data-id="${item.id}" data-minutes="60">${this.t("ticket.snooze_60")}</button>
-          <button class="chip" data-action="snooze" data-id="${item.id}" data-minutes="120">${this.t("ticket.snooze_120")}</button>
-          <input class="chip-input" type="datetime-local" data-snooze-time="${item.id}">
-          <button class="chip" data-action="snooze-custom" data-id="${item.id}" title="${this.t("ticket.custom_snooze")}">
+          <button class="chip" data-action="snooze" data-id="${esc(item.id)}" data-minutes="30">${this.t("ticket.snooze_30")}</button>
+          <button class="chip" data-action="snooze" data-id="${esc(item.id)}" data-minutes="60">${this.t("ticket.snooze_60")}</button>
+          <button class="chip" data-action="snooze" data-id="${esc(item.id)}" data-minutes="120">${this.t("ticket.snooze_120")}</button>
+          <input class="chip-input" type="datetime-local" data-snooze-time="${esc(item.id)}">
+          <button class="chip" data-action="snooze-custom" data-id="${esc(item.id)}" title="${esc(this.t("ticket.custom_snooze"))}">
             <ha-icon icon="mdi:clock-edit-outline"></ha-icon>
           </button>
         </div>
         <div class="spacer"></div>
         ${regimen?.schedule?.type === "interval" && item.status === "pending"
-          ? `<button class="ghost" data-action="postpone-interval" data-id="${item.id}">
+          ? `<button class="ghost" data-action="postpone-interval" data-id="${esc(item.id)}">
               <ha-icon icon="mdi:calendar-arrow-right"></ha-icon>${this.t("ticket.postpone_tomorrow")}</button>`
           : ""}
-        <button class="icon" data-action="show-code" data-kind="intake" data-id="${item.id}"
-          data-label="${esc(title)}" title="${this.t("ticket.qr")}"><ha-icon icon="mdi:qrcode"></ha-icon></button>
-        <button class="text danger" data-action="skip" data-id="${item.id}">${this.t("ticket.skip")}</button>
+        <button class="icon" data-action="show-code" data-kind="intake" data-id="${esc(item.id)}"
+          data-label="${esc(title)}" title="${esc(this.t("ticket.qr"))}"><ha-icon icon="mdi:qrcode"></ha-icon></button>
+        <button class="text danger" data-action="skip" data-id="${esc(item.id)}">${this.t("ticket.skip")}</button>
       </div>
     </article>`;
   }
@@ -565,7 +565,7 @@ class MedicationReminderPanel extends HTMLElement {
     const remaining = Math.round((dose.planned_dose - dose.taken_dose) * 1000) / 1000;
     const detail = [med?.strength, med?.form].filter(Boolean).join(" · ");
     return `<label class="dose ${remaining <= 0 ? "done" : ""}">
-      <input type="checkbox" data-medication="${dose.medication_id}" ${remaining > 0 ? "checked" : "disabled"}>
+      <input type="checkbox" data-medication="${esc(dose.medication_id)}" ${remaining > 0 ? "checked" : "disabled"}>
       <span class="dose-main">
         <strong>${esc(med?.name || this.t("ticket.deleted_medication"))}</strong>
         ${detail ? `<small>${esc(detail)}</small>` : ""}
@@ -575,8 +575,8 @@ class MedicationReminderPanel extends HTMLElement {
         ${dose.taken_dose ? `<small>${this.t("ticket.already_taken", { amount: this.formatNumber(dose.taken_dose) })}</small>` : ""}
       </span>
       <span class="dose-amount">
-        <input type="number" data-dose="${dose.medication_id}" min="0" max="${remaining}"
-          step="0.001" value="${remaining}" ${remaining > 0 ? "" : "disabled"}>
+        <input type="number" data-dose="${esc(dose.medication_id)}" min="0" max="${esc(remaining)}"
+          step="0.001" value="${esc(remaining)}" ${remaining > 0 ? "" : "disabled"}>
         <small>${esc(med?.unit || "")}</small>
       </span>
     </label>`;
@@ -604,7 +604,7 @@ class MedicationReminderPanel extends HTMLElement {
       : this.t("stock.supply", { days: this.formatNumber(item.days_of_supply) });
     const detail = [item.manufacturer, item.strength, item.form].filter(Boolean).map(esc).join(" · ");
     return `<article class="card medication ${low ? "is-low" : ""} ${this.highlightId === item.id ? "highlight" : ""}"
-        data-highlight="${item.id}">
+        data-highlight="${esc(item.id)}">
       <div class="med-head">
         <div>
           <h3>${esc(item.name)}</h3>
@@ -625,13 +625,13 @@ class MedicationReminderPanel extends HTMLElement {
           : `<small class="muted">${this.t("stock.no_packages")}</small>`}
       </div>
       <div class="card-actions">
-        <button class="ghost" data-action="new-package" data-id="${item.id}">
+        <button class="ghost" data-action="new-package" data-id="${esc(item.id)}">
           <ha-icon icon="mdi:package-variant-plus"></ha-icon>${this.t("stock.add_package")}</button>
-        <button class="icon" data-action="show-code" data-kind="medication" data-id="${item.id}"
-          data-label="${esc(item.name)}" title="${this.t("package.code")}"><ha-icon icon="mdi:qrcode"></ha-icon></button>
+        <button class="icon" data-action="show-code" data-kind="medication" data-id="${esc(item.id)}"
+          data-label="${esc(item.name)}" title="${esc(this.t("package.code"))}"><ha-icon icon="mdi:qrcode"></ha-icon></button>
         <div class="spacer"></div>
-        <button class="text" data-action="edit-medication" data-id="${item.id}">${this.t("common.edit")}</button>
-        <button class="text danger" data-action="delete-medication" data-id="${item.id}">${this.t("common.delete")}</button>
+        <button class="text" data-action="edit-medication" data-id="${esc(item.id)}">${this.t("common.edit")}</button>
+        <button class="text danger" data-action="delete-medication" data-id="${esc(item.id)}">${this.t("common.delete")}</button>
       </div>
     </article>`;
   }
@@ -646,7 +646,7 @@ class MedicationReminderPanel extends HTMLElement {
         : this.t("package.no_expiry"),
     ].filter(Boolean).join(" · ");
     return `<div class="package ${pack.remaining_quantity <= 0 ? "empty" : ""} ${expired ? "expired" : ""} ${this.highlightId === pack.id ? "highlight" : ""}"
-        data-highlight="${pack.id}">
+        data-highlight="${esc(pack.id)}">
       <ha-icon icon="mdi:package-variant-closed"></ha-icon>
       <div class="package-main">
         <strong>${esc(pack.nickname)}</strong>
@@ -658,12 +658,12 @@ class MedicationReminderPanel extends HTMLElement {
         <small class="muted">${meta}</small>
       </div>
       <div class="package-actions">
-        <button class="icon small" data-action="show-code" data-kind="package" data-id="${pack.id}"
-          data-label="${esc(pack.nickname)}" title="${this.t("package.code")}"><ha-icon icon="mdi:qrcode"></ha-icon></button>
-        <button class="icon small" data-action="edit-package" data-id="${pack.id}"
-          title="${this.t("package.edit")}"><ha-icon icon="mdi:pencil-outline"></ha-icon></button>
-        <button class="icon small danger" data-action="delete-package" data-id="${pack.id}"
-          title="${this.t("package.delete")}"><ha-icon icon="mdi:delete-outline"></ha-icon></button>
+        <button class="icon small" data-action="show-code" data-kind="package" data-id="${esc(pack.id)}"
+          data-label="${esc(pack.nickname)}" title="${esc(this.t("package.code"))}"><ha-icon icon="mdi:qrcode"></ha-icon></button>
+        <button class="icon small" data-action="edit-package" data-id="${esc(pack.id)}"
+          title="${esc(this.t("package.edit"))}"><ha-icon icon="mdi:pencil-outline"></ha-icon></button>
+        <button class="icon small danger" data-action="delete-package" data-id="${esc(pack.id)}"
+          title="${esc(this.t("package.delete"))}"><ha-icon icon="mdi:delete-outline"></ha-icon></button>
       </div>
     </div>`;
   }
@@ -707,9 +707,9 @@ class MedicationReminderPanel extends HTMLElement {
         <small class="muted">${next ? this.t("regimens.next", { time: this.formatDateTime(next.scheduled_at) }) : this.t("regimens.no_next")}</small>
       </div>
       <div class="regimen-actions">
-        <button class="icon" data-action="edit-regimen" data-id="${item.id}" title="${this.t("common.edit")}">
+        <button class="icon" data-action="edit-regimen" data-id="${esc(item.id)}" title="${esc(this.t("common.edit"))}">
           <ha-icon icon="mdi:pencil-outline"></ha-icon></button>
-        <button class="icon danger" data-action="delete-regimen" data-id="${item.id}" title="${this.t("common.delete")}">
+        <button class="icon danger" data-action="delete-regimen" data-id="${esc(item.id)}" title="${esc(this.t("common.delete"))}">
           <ha-icon icon="mdi:delete-outline"></ha-icon></button>
       </div>
     </article>`;
@@ -776,10 +776,10 @@ class MedicationReminderPanel extends HTMLElement {
       </section>
       <section class="filters">
         <div class="chips">${statuses.map((value) =>
-          `<button class="chip ${this.historyStatus === value ? "on" : ""}" data-action="history-status" data-value="${value}">
+          `<button class="chip ${this.historyStatus === value ? "on" : ""}" data-action="history-status" data-value="${esc(value)}">
             ${value === "all" ? this.t("common.all") : this.status(value)}</button>`).join("")}</div>
         <input class="search" type="search" name="history_search" value="${esc(this.historySearch)}"
-          placeholder="${this.t("history.filter_search")}">
+          placeholder="${esc(this.t("history.filter_search"))}">
       </section>
       ${rows.length ? `<div class="card table-wrap"><table>
         <thead><tr>
@@ -822,16 +822,16 @@ class MedicationReminderPanel extends HTMLElement {
   }
 
   empty(icon, title, text) {
-    return `<div class="empty card"><ha-icon icon="${icon}"></ha-icon><h3>${title}</h3><p class="muted">${text}</p></div>`;
+    return `<div class="empty card"><ha-icon icon="${esc(icon)}"></ha-icon><h3>${title}</h3><p class="muted">${text}</p></div>`;
   }
 
   // --------------------------------------------------------------------- modals
 
   dialog(label, title, body, extraClass = "") {
     return `<div class="modal-backdrop"><section class="modal ${extraClass}" role="dialog"
-        aria-modal="true" aria-label="${label}" data-modal-stop>
+        aria-modal="true" aria-label="${esc(label)}" data-modal-stop>
       <div class="modal-head"><h2>${title}</h2>
-        <button class="icon" data-action="close-modal" title="${this.t("common.cancel")}">
+        <button class="icon" data-action="close-modal" title="${esc(this.t("common.cancel"))}">
           <ha-icon icon="mdi:close"></ha-icon></button>
       </div>${body}</section></div>`;
   }
@@ -847,9 +847,9 @@ class MedicationReminderPanel extends HTMLElement {
   field(name, label, value = "", options = {}) {
     const { required = false, placeholder = "", type = "text", min = "", max = "", step = "", hint = "" } = options;
     return `<label class="field"><span>${label}${required ? " *" : ""}</span>
-      <input name="${name}" type="${type}" value="${esc(value ?? "")}" placeholder="${esc(placeholder)}"
-        ${required ? "required" : ""} ${min !== "" ? `min="${min}"` : ""} ${max !== "" ? `max="${max}"` : ""}
-        ${step ? `step="${step}"` : ""}>
+      <input name="${esc(name)}" type="${esc(type)}" value="${esc(value ?? "")}" placeholder="${esc(placeholder)}"
+        ${required ? "required" : ""} ${min !== "" ? `min="${esc(min)}"` : ""} ${max !== "" ? `max="${esc(max)}"` : ""}
+        ${step ? `step="${esc(step)}"` : ""}>
       ${hint ? `<small class="muted">${hint}</small>` : ""}</label>`;
   }
 
@@ -867,7 +867,7 @@ class MedicationReminderPanel extends HTMLElement {
         <div class="field"><span>${this.t("med_form.stock_calculated")}</span>
           <small class="muted">${this.t(item.id ? "med_form.stock_calculated_help" : "med_form.package_next")}</small></div>
         <label class="field full"><span>${this.t("med_form.notes")}</span>
-          <textarea name="notes" rows="3" placeholder="${this.t("med_form.notes_placeholder")}">${esc(item.notes || "")}</textarea></label>
+          <textarea name="notes" rows="3" placeholder="${esc(this.t("med_form.notes_placeholder"))}">${esc(item.notes || "")}</textarea></label>
       </div>
       ${this.actions(this.t("common.save"))}</form>`;
     return this.dialog(this.t("med_form.dialog_label"),
@@ -886,7 +886,7 @@ class MedicationReminderPanel extends HTMLElement {
         <label class="field full"><span>${this.t("package_form.medication")} *</span>
           <select name="medication_id" required ${item.id ? "disabled" : ""}>
             ${this.state.medications.map((med) =>
-              `<option value="${med.id}" ${med.id === medicationId ? "selected" : ""}>${esc(med.name)} (${esc(med.unit)})</option>`).join("")}
+              `<option value="${esc(med.id)}" ${med.id === medicationId ? "selected" : ""}>${esc(med.name)} (${esc(med.unit)})</option>`).join("")}
           </select>
           ${item.id ? `<input type="hidden" name="medication_id" value="${esc(medicationId)}">` : ""}</label>
         <label class="field"><span>${this.t("package_form.nickname")}</span>
@@ -952,15 +952,15 @@ class MedicationReminderPanel extends HTMLElement {
           </div></div>
         <label class="field full"><span>${this.t("reg_form.notify_services")}</span>
           <input name="notify_services" list="notify-services" value="${esc((item.notify_services || []).join(", "))}"
-            placeholder="${this.t("reg_form.notify_placeholder")}">
+            placeholder="${esc(this.t("reg_form.notify_placeholder"))}">
           <datalist id="notify-services">${this.state.notify_services.map((service) => `<option value="${esc(service)}"></option>`).join("")}</datalist>
           <small class="muted">${this.t("reg_form.notify_help")}</small></label>
         <label class="field full"><span>${this.t("reg_form.scripts")}</span>
           <input name="scripts" list="scripts" value="${esc((item.scripts || []).join(", "))}"
-            placeholder="${this.t("reg_form.script_placeholder")}">
+            placeholder="${esc(this.t("reg_form.script_placeholder"))}">
           <datalist id="scripts">${this.state.scripts.map((script) => `<option value="${esc(script)}"></option>`).join("")}</datalist></label>
         <label class="field full"><span>${this.t("reg_form.instructions")}</span>
-          <textarea name="instructions" rows="2" placeholder="${this.t("reg_form.instructions_placeholder")}">${esc(item.instructions || "")}</textarea></label>
+          <textarea name="instructions" rows="2" placeholder="${esc(this.t("reg_form.instructions_placeholder"))}">${esc(item.instructions || "")}</textarea></label>
         <details class="field full advanced" ${item.reminder_window_minutes === 0 || item.auto_miss_after_minutes ? "open" : ""}>
           <summary>${this.t("common.advanced")}</summary>
           <div class="inline-fields">
@@ -980,10 +980,10 @@ class MedicationReminderPanel extends HTMLElement {
       <select name="medication_${index}" required>
         <option value="">${this.t("reg_form.choose_medication")}</option>
         ${this.state.medications.map((med) =>
-          `<option value="${med.id}" ${med.id === dose.medication_id ? "selected" : ""}>${esc(med.name)} (${esc(med.unit)})</option>`).join("")}
+          `<option value="${esc(med.id)}" ${med.id === dose.medication_id ? "selected" : ""}>${esc(med.name)} (${esc(med.unit)})</option>`).join("")}
       </select>
-      <input name="dose_${index}" type="number" min="0.001" step="0.001" value="${dose.dose}" required>
-      <button type="button" class="icon" data-action="remove-dose" title="${this.t("reg_form.remove")}">
+      <input name="dose_${index}" type="number" min="0.001" step="0.001" value="${esc(dose.dose)}" required>
+      <button type="button" class="icon" data-action="remove-dose" title="${esc(this.t("reg_form.remove"))}">
         <ha-icon icon="mdi:close"></ha-icon></button>
     </div>`;
   }
@@ -1003,7 +1003,7 @@ class MedicationReminderPanel extends HTMLElement {
   codeModal(item) {
     const body = `<div class="code-content">
       <h3>${esc(item.label)}</h3>
-      <img src="${esc(item.dataUri)}" alt="${this.t("code.dialog_label")}">
+      <img src="${esc(item.dataUri)}" alt="${esc(this.t("code.dialog_label"))}">
       <code>${esc(item.code)}</code>
       <p class="muted">${this.t("code.help")}</p>
       <div class="modal-actions">
@@ -1023,7 +1023,7 @@ class MedicationReminderPanel extends HTMLElement {
     const blocked = !printing.available;
     return `<button class="ghost" data-action="print-label"
       data-value="${esc(item.code)}" data-label="${esc(item.label)}"
-      ${blocked ? `disabled title="${this.t("code.print_unavailable")}"` : ""}>
+      ${blocked ? `disabled title="${esc(this.t("code.print_unavailable"))}"` : ""}>
       <ha-icon icon="mdi:printer"></ha-icon>${this.t("code.print")}</button>`;
   }
 
@@ -1217,7 +1217,7 @@ class MedicationReminderPanel extends HTMLElement {
         this.t("action.reminder_snoozed"));
     }
     if (action === "snooze-custom") {
-      const input = this.shadowRoot.querySelector(`[data-snooze-time="${id}"]`);
+      const input = this.shadowRoot.querySelector(`[data-snooze-time="${esc(id)}"]`);
       if (!input?.value) return this.showToast(this.t("error.select_time"), true);
       const until = new Date(input.value);
       if (until <= new Date()) return this.showToast(this.t("error.future_snooze"), true);
@@ -1252,7 +1252,7 @@ class MedicationReminderPanel extends HTMLElement {
     const doses = {};
     ticket.querySelectorAll("[data-medication]").forEach((checkbox) => {
       if (!checkbox.checked) return;
-      const amount = Number(ticket.querySelector(`[data-dose="${checkbox.dataset.medication}"]`).value);
+      const amount = Number(ticket.querySelector(`[data-dose="${esc(checkbox.dataset.medication)}"]`).value);
       if (Number.isFinite(amount) && amount > 0) doses[checkbox.dataset.medication] = amount;
     });
     if (!Object.keys(doses).length) return this.showToast(this.t("error.select_dose"), true);

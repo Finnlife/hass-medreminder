@@ -91,6 +91,7 @@ async def ws_get_state(hass, connection, msg) -> None:
         vol.Required("medication"): dict,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_save_medication(hass, connection, msg) -> None:
     await _respond(
@@ -104,6 +105,7 @@ async def ws_save_medication(hass, connection, msg) -> None:
         vol.Required("medication_id"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_delete_medication(hass, connection, msg) -> None:
     await _respond(
@@ -116,6 +118,7 @@ async def ws_delete_medication(hass, connection, msg) -> None:
 @websocket_api.websocket_command(
     {vol.Required("type"): f"{DOMAIN}/save_package", vol.Required("package"): dict}
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_save_package(hass, connection, msg) -> None:
     await _respond(
@@ -131,6 +134,7 @@ async def ws_save_package(hass, connection, msg) -> None:
         vol.Required("package_id"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_delete_package(hass, connection, msg) -> None:
     await _respond(
@@ -143,6 +147,7 @@ async def ws_delete_package(hass, connection, msg) -> None:
 @websocket_api.websocket_command(
     {vol.Required("type"): f"{DOMAIN}/save_regimen", vol.Required("regimen"): dict}
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_save_regimen(hass, connection, msg) -> None:
     await _respond(
@@ -156,6 +161,7 @@ async def ws_save_regimen(hass, connection, msg) -> None:
         vol.Required("regimen_id"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_delete_regimen(hass, connection, msg) -> None:
     await _respond(
@@ -289,6 +295,7 @@ async def ws_export_history(hass, connection, msg) -> None:
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/export_backup"})
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_export_backup(hass, connection, msg) -> None:
     """Return a downloadable full JSON backup."""
@@ -301,6 +308,7 @@ async def ws_export_backup(hass, connection, msg) -> None:
         vol.Required("backup"): dict,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_import_backup(hass, connection, msg) -> None:
     """Validate and atomically restore a full JSON backup."""
@@ -349,6 +357,7 @@ async def ws_skip(hass, connection, msg) -> None:
         vol.Required("confirmation"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_delete_all_data(hass, connection, msg) -> None:
     """Delete every persisted Medication Reminder record."""

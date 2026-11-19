@@ -371,7 +371,7 @@ class MedicationReminderCard extends HTMLElement {
       : regimen?.name || item.regimen_name || this.t("ticket.orphan_plan");
     const snoozed = item.snoozed_until && new Date(item.snoozed_until) > new Date();
     const overdue = this.isDue(item) && Date.now() - new Date(item.scheduled_at) > 3600000;
-    return `<div class="intake" data-intake="${item.id}">
+    return `<div class="intake" data-intake="${esc(item.id)}">
       <div class="intake-head">
         <div>
           <div class="chips">
@@ -387,16 +387,16 @@ class MedicationReminderCard extends HTMLElement {
       ${item.reason ? `<div class="reason">${this.t("ticket.reason", { reason: esc(item.reason) })}</div>` : ""}
       <div class="doses">${item.items.map((dose) => this.renderDose(dose)).join("")}</div>
       <div class="actions">
-        <button class="record" data-action="record" data-id="${item.id}">
+        <button class="record" data-action="record" data-id="${esc(item.id)}">
           <ha-icon icon="mdi:check"></ha-icon>${this.t("card.record")}
         </button>
         ${this.config.show_snooze ? `
-          <button class="chip" data-action="snooze" data-id="${item.id}" data-minutes="30">${this.t("ticket.snooze_30")}</button>
-          <button class="chip" data-action="snooze" data-id="${item.id}" data-minutes="60">${this.t("ticket.snooze_60")}</button>
-          <button class="chip" data-action="snooze" data-id="${item.id}" data-minutes="120">${this.t("ticket.snooze_120")}</button>` : ""}
+          <button class="chip" data-action="snooze" data-id="${esc(item.id)}" data-minutes="30">${this.t("ticket.snooze_30")}</button>
+          <button class="chip" data-action="snooze" data-id="${esc(item.id)}" data-minutes="60">${this.t("ticket.snooze_60")}</button>
+          <button class="chip" data-action="snooze" data-id="${esc(item.id)}" data-minutes="120">${this.t("ticket.snooze_120")}</button>` : ""}
         <div class="spacer"></div>
         ${this.config.show_skip
-          ? `<button class="chip skip" data-action="skip" data-id="${item.id}">${this.t("ticket.skip")}</button>`
+          ? `<button class="chip skip" data-action="skip" data-id="${esc(item.id)}">${this.t("ticket.skip")}</button>`
           : ""}
       </div>
     </div>`;
@@ -409,16 +409,16 @@ class MedicationReminderCard extends HTMLElement {
     const plan = dose.package_plan?.length
       ? dose.package_plan.map((part) => part.nickname).join(" + ") : "";
     return `<label class="dose">
-      <input type="checkbox" data-medication="${dose.medication_id}" ${remaining > 0 ? "checked" : "disabled"}>
+      <input type="checkbox" data-medication="${esc(dose.medication_id)}" ${remaining > 0 ? "checked" : "disabled"}>
       <span class="dose-main">
         <span>${esc(med?.name || this.t("ticket.deleted_medication"))}</span>
         ${plan ? `<small>${this.t("ticket.take_from", { packages: esc(plan) })}</small>` : ""}
       </span>
       <span class="dose-amount">
         ${this.config.allow_partial
-          ? `<input type="number" data-dose="${dose.medication_id}" min="0" max="${remaining}"
-              step="0.001" value="${remaining}" ${remaining > 0 ? "" : "disabled"}>`
-          : `<b class="fixed" data-dose="${dose.medication_id}" data-value="${remaining}">${this.formatNumber(remaining)}</b>`}
+          ? `<input type="number" data-dose="${esc(dose.medication_id)}" min="0" max="${esc(remaining)}"
+              step="0.001" value="${esc(remaining)}" ${remaining > 0 ? "" : "disabled"}>`
+          : `<b class="fixed" data-dose="${esc(dose.medication_id)}" data-value="${esc(remaining)}">${this.formatNumber(remaining)}</b>`}
         <small class="muted">${unit}</small>
       </span>
     </label>`;
@@ -477,7 +477,7 @@ class MedicationReminderCard extends HTMLElement {
     const doses = {};
     container.querySelectorAll("[data-medication]").forEach((checkbox) => {
       if (!checkbox.checked) return;
-      const field = container.querySelector(`[data-dose="${checkbox.dataset.medication}"]`);
+      const field = container.querySelector(`[data-dose="${esc(checkbox.dataset.medication)}"]`);
       const amount = Number(field?.value ?? field?.dataset.value ?? 0);
       if (Number.isFinite(amount) && amount > 0) doses[checkbox.dataset.medication] = amount;
     });

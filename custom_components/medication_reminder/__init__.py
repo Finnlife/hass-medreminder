@@ -19,6 +19,7 @@ from homeassistant.core import (
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.device_registry import DeviceEntry
+from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.util import dt as dt_util
 
 from .cleanup import async_prune_registries, async_registry_signature
@@ -255,7 +256,9 @@ def _register_services(hass: HomeAssistant) -> None:
             }
         ),
     )
-    hass.services.async_register(
+    # Changes master data or wipes it, so only an admin (or an automation) may.
+    async_register_admin_service(
+        hass,
         DOMAIN,
         "add_package",
         add_package,
@@ -368,7 +371,9 @@ def _register_services(hass: HomeAssistant) -> None:
             }
         ),
     )
-    hass.services.async_register(
+    # Changes master data or wipes it, so only an admin (or an automation) may.
+    async_register_admin_service(
+        hass,
         DOMAIN,
         "delete_all_data",
         delete_all_data,

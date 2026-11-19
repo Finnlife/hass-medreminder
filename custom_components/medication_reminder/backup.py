@@ -4,13 +4,26 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from copy import deepcopy
 from datetime import date, datetime
 from typing import Any
 
 from .const import ALL_STATUSES, STORAGE_MINOR_VERSION, STORAGE_VERSION
 from .migrations import migrate_storage
-from .models import validate_reminder_targets
+from .models import (
+    MAX_NOTES_LENGTH,
+    normalize_medication,
+    normalize_package,
+    normalize_regimen,
+    normalize_reminder,
+    text_field,
+    validate_reminder_targets,
+)
+
+# Every ID ends up in the markup of the panel and the card, so an imported one
+# must look like an ID the integration would have generated itself.
+ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 BACKUP_FORMAT = "medication_reminder_backup"
 BACKUP_VERSION = 1
@@ -57,8 +70,46 @@ def prepare_backup_import(payload: dict[str, Any]) -> dict[str, Any]:
         migrated = migrate_storage(major, minor, raw_data)
     except NotImplementedError as err:
         raise ValueError(str(err)) from err
-    _validate_data(migrated)
+    except (AttributeError, KeyError, TypeError) as err:
+        raise ValueError("Invalid Medication Reminder backup") from err
+    try:
+        _validate_data(migrated)
+        _canonicalize(migrated)
+    except (AttributeError, KeyError, TypeError) as err:
+        # A record of the wrong shape, such as a string where an object belongs.
+        raise ValueError("Invalid Medication Reminder backup") from err
     return migrated
+
+
+def _canonicalize(data: dict[str, Any]) -> None:
+    """Run every record through the same rules as a save from the panel.
+
+    The structural checks above only prove the backup is consistent. A field
+    they do not look at must still not reach storage with a type or size a
+    normal save would refuse.
+    """
+    medication_ids = {medication["id"] for medication in data["medications"]}
+    for medication in data["medications"]:
+        normalized = normalize_medication(medication, medication["id"])
+        # Stock is derived from the packages, so it is not taken from the file.
+        normalized.pop("stock")
+        medication.update(normalized)
+    for package in data["packages"]:
+        package.update(
+            normalize_package(package, package["medication_id"], existing=package)
+        )
+    for regimen in data["regimens"]:
+        regimen.update(normalize_regimen(regimen, medication_ids, regimen["id"]))
+    for occurrence in data["occurrences"]:
+        if isinstance(occurrence.get("reminder"), dict):
+            occurrence["reminder"] = normalize_reminder(occurrence["reminder"])
+        for field in ("regimen_name", "reference"):
+            if occurrence.get(field) is not None:
+                occurrence[field] = text_field(occurrence[field], field)
+        if occurrence.get("reason") is not None:
+            occurrence["reason"] = text_field(
+                occurrence["reason"], "reason", MAX_NOTES_LENGTH
+            )
 
 
 def _validate_data(data: dict[str, Any]) -> None:
@@ -139,8 +190,10 @@ def _validate_data(data: dict[str, Any]) -> None:
             )
         _optional_timestamp(occurrence.get("snoozed_until"), "occurrence snooze time")
         regimen_id = occurrence.get("regimen_id")
+        # A one-off intake belongs to no schedule, so it has nothing to reference.
         if (
             status in ("pending", "partial")
+            and not occurrence.get("ad_hoc")
             and _reference(regimen_id, "occurrence schedule") not in regimen_ids
         ):
             raise ValueError("Open occurrence references an unknown schedule")
@@ -174,15 +227,19 @@ def _unique_ids(items: list[dict[str, Any]], label: str) -> set[str]:
         if not isinstance(item, dict):
             raise ValueError(f"Backup {label} must be an object")
         item_id = item.get("id")
-        if not isinstance(item_id, str) or not item_id.strip() or item_id in result:
+        if not isinstance(item_id, str) or not ID_PATTERN.fullmatch(item_id):
+            raise ValueError(
+                f"Backup {label} IDs must be 1-64 letters, digits, '_' or '-'"
+            )
+        if item_id in result:
             raise ValueError(f"Backup {label} IDs must be non-empty and unique")
         result.add(item_id)
     return result
 
 
 def _reference(value: Any, field: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise ValueError(f"{field} reference must be a non-empty string")
+    if not isinstance(value, str) or not ID_PATTERN.fullmatch(value):
+        raise ValueError(f"{field} reference must be a valid ID")
     return value
 
 

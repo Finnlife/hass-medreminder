@@ -45,6 +45,7 @@ class LabelPrinter:
     def __init__(self, hass: HomeAssistant, options: dict[str, Any]) -> None:
         self.hass = hass
         self.options = dict(options or {})
+        self._printing = False
 
     # ------------------------------------------------------------------
     # Configuration
@@ -121,7 +122,20 @@ class LabelPrinter:
         return job
 
     async def async_print(self, code: str, name: str) -> dict[str, Any]:
-        """Publish a print job and wait for the service to confirm it."""
+        """Publish a print job and wait for the service to confirm it.
+
+        Any user may print, so only one job runs at a time: a burst of presses
+        cannot queue up labels or pile up subscriptions on the broker.
+        """
+        if self._printing:
+            raise HomeAssistantError("A label is already being printed")
+        self._printing = True
+        try:
+            return await self._async_print(code, name)
+        finally:
+            self._printing = False
+
+    async def _async_print(self, code: str, name: str) -> dict[str, Any]:
         if not self.enabled:
             raise PrintingNotConfigured("Label printing is switched off")
         if not self.mqtt_configured():

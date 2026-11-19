@@ -16,6 +16,52 @@ LOCALIZE = ROOT / "custom_components/medication_reminder/frontend/localize.js"
 INIT = ROOT / "custom_components/medication_reminder/__init__.py"
 
 
+class MarkupEscapingTests(unittest.TestCase):
+    """Every value placed in an attribute goes through esc()."""
+
+    def test_no_attribute_takes_a_raw_value(self) -> None:
+        unescaped = re.compile(r'="\$\{(?!esc\()')
+        for path in (PANEL, CARD):
+            source = path.read_text(encoding="utf-8")
+            offenders = [
+                line.strip()
+                for line in source.splitlines()
+                if unescaped.search(line)
+            ]
+            self.assertEqual([], offenders, path.name)
+
+
+class AdminCommandTests(unittest.TestCase):
+    """Commands that change master data or move all of it are admin-only."""
+
+    def test_master_data_commands_require_admin(self) -> None:
+        backend = WEBSOCKET.read_text(encoding="utf-8")
+        for command in (
+            "save_medication",
+            "delete_medication",
+            "save_package",
+            "delete_package",
+            "save_regimen",
+            "delete_regimen",
+            "export_backup",
+            "import_backup",
+            "delete_all_data",
+        ):
+            block = backend.split(f'f"{{DOMAIN}}/{command}"', 1)[1]
+            decorators = block.split("async def", 1)[0]
+            self.assertIn("@websocket_api.require_admin", decorators, command)
+
+    def test_master_data_services_are_admin_services(self) -> None:
+        init = INIT.read_text(encoding="utf-8")
+        for service in ("add_package", "delete_all_data"):
+            self.assertRegex(
+                init,
+                r'async_register_admin_service\(\s*hass,\s*DOMAIN,\s*"'
+                + service
+                + '"',
+            )
+
+
 class FrontendContractTests(unittest.TestCase):
     """Protect WebSocket IDs and explicit-only modal closing."""
 

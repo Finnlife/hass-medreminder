@@ -608,6 +608,22 @@ class ReminderLoopTests(unittest.IsolatedAsyncioTestCase):
             [event for event, _data in manager.hass.bus.events],
         )
 
+    async def test_an_intake_open_for_a_month_is_closed_as_missed(self) -> None:
+        # Without a miss timeout an intake used to stay open forever.
+        manager, now = self.build()
+        manager.data["occurrences"] = [self.ticket(now, 31 * 24 * 60)]
+        await manager._async_tick(now)
+        self.assertEqual("missed", manager.data["occurrences"][0]["status"])
+
+    def test_the_calendar_answers_at_most_a_year(self) -> None:
+        manager, now = self.build(
+            schedule={"type": "weekly", "days": {str(day): ["08:00"] for day in range(7)}}
+        )
+        events = manager.planned_events(now, now + timedelta(days=3650))
+        self.assertTrue(events)
+        latest = max(event["start"] for event in events)
+        self.assertLessEqual(latest, now + timedelta(days=367))
+
     async def test_auto_miss_leaves_future_intakes_untouched(self) -> None:
         manager, now = self.build(auto_miss_after_minutes=60)
         manager.data["occurrences"] = [self.ticket(now, -30)]

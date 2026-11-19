@@ -9,7 +9,7 @@ STORAGE_VERSION: Final = 1
 STORAGE_MINOR_VERSION: Final = 7
 PANEL_URL: Final = DOMAIN
 PANEL_STATIC_URL: Final = f"/{DOMAIN}_frontend"
-FRONTEND_CACHE_KEY: Final = "0.9.4"
+FRONTEND_CACHE_KEY: Final = "0.9.5"
 
 EVENT_DUE: Final = f"{DOMAIN}_due"
 EVENT_TAKEN: Final = f"{DOMAIN}_taken"
@@ -27,6 +27,8 @@ CATCHUP_DAYS: Final = 30
 # How often the manager evaluates schedules and reminders.
 TICK_SECONDS: Final = 30
 MAX_HISTORY: Final = 2000
+# Open intakes listed in a sensor attribute; the state counts all of them.
+MAX_LISTED_INTAKES: Final = 20
 ADHERENCE_WINDOW_DAYS: Final = 30
 # How far ahead an automation may plan a single intake.
 AD_HOC_MAX_LEAD_DAYS: Final = 365

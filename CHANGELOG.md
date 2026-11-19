@@ -4,9 +4,47 @@ Every released version is described here, in English, so an update in HACS says
 what actually changed. The release workflow reads the section matching the
 version in the integration manifest and refuses to publish without one.
 
-Entries are grouped as **Added**, **Changed**, **Fixed** and **Removed**, newest
-version first. Versions follow the manifest, and the project is still pre-1.0:
-the storage compatibility contract is not final until version 1.0.
+Entries are grouped as **Added**, **Changed**, **Fixed**, **Removed** and
+**Security**, newest version first. Versions follow the manifest, and the
+project is still pre-1.0: the storage compatibility contract is not final until
+version 1.0.
+
+## 0.9.5
+
+This release closes the findings of a security review. Several of them could be
+reached by any signed-in user, not only by an administrator.
+
+### Changed
+
+- Adding, editing and deleting medications, packages and plans, importing and
+  exporting a backup and deleting all data now require an administrator. The
+  `add_package` and `delete_all_data` actions are admin actions; automations
+  can still call them. Recording, snoozing and skipping an intake and planning
+  or cancelling a one-off intake stay open to every user.
+- A plan holds at most 24 intake times per day.
+- An intake that has been open for 30 days is closed as missed, even when its
+  plan has no miss timeout, so open intakes no longer pile up forever.
+- The pending and due intake sensors list at most 20 intakes in their
+  attributes; their state still counts all of them.
+- Only one label is printed at a time.
+
+### Fixed
+
+- A crafted backup could store markup in an ID that the panel and the card
+  then rendered unescaped, running script in the browser of whoever opened
+  them next. Every value placed in the markup is escaped now, imported IDs
+  must look like generated ones, and every imported record goes through the
+  same validation as a save from the panel.
+- A calendar request over an arbitrary range walked every day in it and could
+  stall Home Assistant. A request now covers at most a year.
+- A reminder restored with a repeat interval of zero fired on every tick.
+- A backup holding an open one-off intake could not be restored.
+
+### Security
+
+- The workflows pin every action to a commit, the release job keeps no git
+  credentials in its workspace, and the version reaches the release scripts
+  through the environment instead of being expanded into them.
 
 ## 0.9.4
 

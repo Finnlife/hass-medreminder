@@ -16,7 +16,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .const import DOMAIN, MAX_LISTED_INTAKES
 from .entity import (
     MedicationEntity,
     MedicationReminderEntity,
@@ -251,9 +251,12 @@ class PendingIntakesSensor(MedicationReminderEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         open_items = self.manager.open_occurrences()
+        # The recorder keeps every attribute change, so only the first intakes
+        # are listed; the state still counts all of them.
+        listed = open_items[:MAX_LISTED_INTAKES]
         return {
-            "occurrence_ids": [item["id"] for item in open_items],
-            "summaries": [self.manager.occurrence_label(item) for item in open_items],
+            "occurrence_ids": [item["id"] for item in listed],
+            "summaries": [self.manager.occurrence_label(item) for item in listed],
             "next_due": open_items[0]["scheduled_at"] if open_items else None,
         }
 
