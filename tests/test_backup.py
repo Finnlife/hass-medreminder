@@ -167,6 +167,18 @@ class BackupTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "IDs"):
             backup.prepare_backup_import(envelope)
 
+    def test_backup_with_a_non_notify_reminder_target_is_rejected(self) -> None:
+        download = backup.build_backup_download(self.data, datetime.now(timezone.utc))
+        envelope = json.loads(download["content"])
+        envelope["data"]["regimens"][0]["notify_services"] = ["homeassistant.restart"]
+        with self.assertRaisesRegex(ValueError, "notify services"):
+            backup.prepare_backup_import(envelope)
+
+        envelope = json.loads(download["content"])
+        envelope["data"]["regimens"][0]["scripts"] = ["all"]
+        with self.assertRaisesRegex(ValueError, "script entities"):
+            backup.prepare_backup_import(envelope)
+
 
 if __name__ == "__main__":
     unittest.main()

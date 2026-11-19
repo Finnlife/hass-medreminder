@@ -37,6 +37,8 @@ from .history_export import build_history_export
 from .localization import translate
 from .migrations import ensure_current_data
 from .models import (
+    NOTIFY_TARGET_PATTERN,
+    SCRIPT_ENTITY_PATTERN,
     ad_hoc_occurrence,
     empty_data,
     new_id,
@@ -1216,6 +1218,13 @@ class MedicationManager:
         }
         for target in targets:
             domain, separator, service = target.partition(".")
+            # Second guard for data stored before targets were validated: a
+            # reminder must never call anything but a notify service.
+            if domain != "notify" or not NOTIFY_TARGET_PATTERN.fullmatch(target):
+                _LOGGER.warning(
+                    "Ignoring reminder target %s: not a notify service", target
+                )
+                continue
             if not separator or not self.hass.services.has_service(domain, service):
                 _LOGGER.warning("Notification service %s is unavailable", target)
                 continue
@@ -1226,6 +1235,11 @@ class MedicationManager:
             except Exception:  # Home Assistant logs provider-specific details.
                 _LOGGER.exception("Could not send medication reminder via %s", target)
         for entity_id in scripts:
+            if not SCRIPT_ENTITY_PATTERN.fullmatch(entity_id):
+                _LOGGER.warning(
+                    "Ignoring reminder script %s: not a script entity", entity_id
+                )
+                continue
             try:
                 await self.hass.services.async_call(
                     "script",

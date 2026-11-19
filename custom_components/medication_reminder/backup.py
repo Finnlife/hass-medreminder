@@ -10,6 +10,7 @@ from typing import Any
 
 from .const import ALL_STATUSES, STORAGE_MINOR_VERSION, STORAGE_VERSION
 from .migrations import migrate_storage
+from .models import validate_reminder_targets
 
 BACKUP_FORMAT = "medication_reminder_backup"
 BACKUP_VERSION = 1
@@ -119,8 +120,9 @@ def _validate_data(data: dict[str, Any]) -> None:
         repeat = _integer(regimen.get("repeat_minutes", 30), "repeat_minutes")
         if not 5 <= repeat <= 1440:
             raise ValueError("repeat_minutes must be between 5 and 1440")
-        _string_list(regimen.get("notify_services", []), "notification services")
-        _string_list(regimen.get("scripts", []), "scripts")
+        validate_reminder_targets(
+            regimen.get("notify_services", []), regimen.get("scripts", [])
+        )
 
     for occurrence in data["occurrences"]:
         status = occurrence.get("status")
@@ -131,6 +133,10 @@ def _validate_data(data: dict[str, Any]) -> None:
         reminder = occurrence.get("reminder")
         if reminder is not None and not isinstance(reminder, dict):
             raise ValueError("Intake reminder settings must be an object")
+        if reminder is not None:
+            validate_reminder_targets(
+                reminder.get("notify_services", []), reminder.get("scripts", [])
+            )
         _optional_timestamp(occurrence.get("snoozed_until"), "occurrence snooze time")
         regimen_id = occurrence.get("regimen_id")
         if (
@@ -255,11 +261,6 @@ def _timestamp(value: Any, field: str) -> None:
 def _optional_timestamp(value: Any, field: str) -> None:
     if value not in (None, ""):
         _timestamp(value, field)
-
-
-def _string_list(value: Any, field: str) -> None:
-    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
-        raise ValueError(f"{field} must be a list of strings")
 
 
 def _time(value: Any) -> None:

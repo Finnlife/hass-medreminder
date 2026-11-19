@@ -9,7 +9,7 @@ STORAGE_VERSION: Final = 1
 STORAGE_MINOR_VERSION: Final = 7
 PANEL_URL: Final = DOMAIN
 PANEL_STATIC_URL: Final = f"/{DOMAIN}_frontend"
-FRONTEND_CACHE_KEY: Final = "0.9.3"
+FRONTEND_CACHE_KEY: Final = "0.9.4"
 
 EVENT_DUE: Final = f"{DOMAIN}_due"
 EVENT_TAKEN: Final = f"{DOMAIN}_taken"

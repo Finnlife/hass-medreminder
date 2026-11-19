@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta
 from typing import Any
@@ -131,6 +132,27 @@ def normalize_regimen(
     }
 
 
+# A reminder runs later without the context of the user who configured it, so
+# it may only ever reach a notify service or start a script. Anything else would
+# let a non-admin user make the integration call admin-only services.
+NOTIFY_TARGET_PATTERN = re.compile(r"^notify\.[a-z0-9_]+$")
+SCRIPT_ENTITY_PATTERN = re.compile(r"^script\.[a-z0-9_]+$")
+
+
+def validate_reminder_targets(targets: Any, scripts: Any) -> None:
+    """Reject reminder targets other than notify services and script entities."""
+    if not isinstance(targets, list) or any(
+        not isinstance(target, str) or not NOTIFY_TARGET_PATTERN.fullmatch(target)
+        for target in targets
+    ):
+        raise ValueError("Reminder targets must be notify services (notify.*)")
+    if not isinstance(scripts, list) or any(
+        not isinstance(script, str) or not SCRIPT_ENTITY_PATTERN.fullmatch(script)
+        for script in scripts
+    ):
+        raise ValueError("Reminder scripts must be script entities (script.*)")
+
+
 def normalize_reminder(raw: dict[str, Any]) -> dict[str, Any]:
     """Validate the reminder settings shared by plans and one-off intakes."""
     targets = sorted(
@@ -147,6 +169,7 @@ def normalize_reminder(raw: dict[str, Any]) -> dict[str, Any]:
             if str(value).strip()
         }
     )
+    validate_reminder_targets(targets, scripts)
     repeat_minutes = _bounded_int(
         raw.get("repeat_minutes", DEFAULT_REPEAT_MINUTES), "repeat_minutes", 5, 1440
     )

@@ -326,6 +326,42 @@ class ManagerInvariantTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, medication["stock"])
         self.assertEqual("packages", medication["stock_mode"])
 
+    def test_reminder_accepts_only_notify_services_and_scripts(self) -> None:
+        settings = models_module.normalize_reminder(
+            {"notify_services": ["notify.phone"], "scripts": ["script.chime"]}
+        )
+        self.assertEqual(["notify.phone"], settings["notify_services"])
+        for target in (
+            "homeassistant.restart",
+            "hassio.host_shutdown",
+            "notify",
+            "notify.",
+            "notify.phone; x",
+            "persistent_notification.create",
+        ):
+            with self.subTest(target=target), self.assertRaises(ValueError):
+                models_module.normalize_reminder({"notify_services": [target]})
+        for script in ("homeassistant.restart", "all", "script.", "light.kitchen"):
+            with self.subTest(script=script), self.assertRaises(ValueError):
+                models_module.normalize_reminder({"scripts": [script]})
+
+    async def test_notify_skips_stored_targets_outside_notify(self) -> None:
+        manager = self.manager_with_occurrence(second_stock=10)
+        settings = {
+            "notify_services": ["homeassistant.restart", "notify.phone"],
+            "scripts": ["all", "script.chime"],
+        }
+        await manager._async_notify(
+            settings, "Plan", manager.data["occurrences"][0]
+        )
+        self.assertEqual(
+            [("notify", "phone"), ("script", "turn_on")],
+            [call[:2] for call in manager.hass.services.calls],
+        )
+        self.assertEqual(
+            {"entity_id": "script.chime"}, manager.hass.services.calls[1][2]
+        )
+
     async def test_notification_payload_uses_configured_language(self) -> None:
         manager = self.manager_with_occurrence(second_stock=10)
         manager.hass.config.language = "de-DE"

@@ -8,6 +8,19 @@ Entries are grouped as **Added**, **Changed**, **Fixed** and **Removed**, newest
 version first. Versions follow the manifest, and the project is still pre-1.0:
 the storage compatibility contract is not final until version 1.0.
 
+## 0.9.4
+
+### Fixed
+
+- A reminder could call any Home Assistant service, not only a notification.
+  Its targets come from the panel, a backup import and the `schedule_intake`
+  action, which non-admin users can reach as well, and the call runs later
+  without a user context, so a non-admin user could make the integration call
+  admin-only services. Reminder targets are now restricted to `notify.*`
+  services and reminder scripts to `script.*` entities; anything else is
+  rejected when it is saved or imported. Targets stored by an earlier version
+  that do not match are skipped and logged instead of being called.
+
 ## 0.9.3
 
 ### Added
