@@ -756,7 +756,7 @@ export const LANGUAGES = Object.freeze(Object.keys(CATALOGS));
  * without changing the language of the whole installation. It survives a
  * reload of the tab and disappears when the tab is closed.
  */
-const OVERRIDE_KEY = "medication_reminder_language";
+const OVERRIDE_KEY = "medreminder_language";
 const listeners = new Set();
 
 function isKnown(language) {

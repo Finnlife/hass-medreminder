@@ -64,14 +64,14 @@ def _install_home_assistant_stubs() -> None:
 def _import(name: str):
     from pathlib import Path
 
-    root = Path(__file__).parents[1] / "custom_components" / "medication_reminder"
-    package = types.ModuleType("custom_components.medication_reminder")
+    root = Path(__file__).parents[1] / "custom_components" / "medreminder"
+    package = types.ModuleType("custom_components.medreminder")
     package.__path__ = [str(root)]
     custom_components = types.ModuleType("custom_components")
     custom_components.__path__ = [str(root.parent)]
     sys.modules.setdefault("custom_components", custom_components)
-    sys.modules.setdefault("custom_components.medication_reminder", package)
-    return importlib.import_module(f"custom_components.medication_reminder.{name}")
+    sys.modules.setdefault("custom_components.medreminder", package)
+    return importlib.import_module(f"custom_components.medreminder.{name}")
 
 
 _install_home_assistant_stubs()
@@ -159,7 +159,7 @@ class JobTests(unittest.TestCase):
         self.assertEqual("qr_nickname", job["template"])
         self.assertEqual({"code": "med23456", "name": "Apollo"}, job["data"])
         self.assertEqual(1, job["copies"])
-        self.assertTrue(job["job_id"].startswith("medication_reminder_"))
+        self.assertTrue(job["job_id"].startswith("medreminder_"))
 
     def test_a_missing_name_is_left_out(self) -> None:
         # Without a name the template centres the code, so an empty string

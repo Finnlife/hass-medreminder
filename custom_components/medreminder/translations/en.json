@@ -263,5 +263,11 @@
       "invalid_topic": "Enter a base topic without the wildcards + and #.",
       "invalid_template": "Enter the name of a template of the print service."
     }
+  },
+  "issues": {
+    "legacy_folder": {
+      "title": "The previous copy of Medication Reminder is still installed",
+      "description": "Medication Reminder was renamed from `medication_reminder` to `medreminder`, and your data was moved over. The previous copy is still in `{path}`. Delete that folder and restart Home Assistant, otherwise Home Assistant keeps offering it as a second integration of the same name."
+    }
   }
 }

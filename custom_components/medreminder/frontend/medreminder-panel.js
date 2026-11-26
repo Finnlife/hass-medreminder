@@ -1,6 +1,10 @@
 import { createTranslator, onLanguageChange, resolveLanguage } from "./localize.js";
 import { PANEL_STYLES } from "./styles.js";
 
+// Integration domain; the WebSocket API and the static files are named after it.
+const DOMAIN = "medreminder";
+const PANEL_ELEMENT = `${DOMAIN}-panel`;
+
 const DAY_KEYS = [
   "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
 ];
@@ -107,7 +111,7 @@ class MedicationReminderPanel extends HTMLElement {
   async call(type, payload = {}) {
     if (!this.hass) throw new Error("Home Assistant is not connected yet.");
     return this.hass.connection.sendMessagePromise({
-      type: `medication_reminder/${type}`, ...payload,
+      type: `${DOMAIN}/${type}`, ...payload,
     });
   }
 
@@ -313,7 +317,7 @@ class MedicationReminderPanel extends HTMLElement {
   renderHeader() {
     this.$header.innerHTML = `
       <div class="brand">
-        <img src="/medication_reminder_frontend/logo.png" alt="">
+        <img src="/${DOMAIN}_frontend/logo.png" alt="">
         <div><h1>${this.t("app.title")}</h1><p>${this.t("app.subtitle")}</p></div>
       </div>
       <div class="header-actions">
@@ -1399,6 +1403,6 @@ class MedicationReminderPanel extends HTMLElement {
   }
 }
 
-if (!customElements.get("medication-reminder-panel")) {
-  customElements.define("medication-reminder-panel", MedicationReminderPanel);
+if (!customElements.get(PANEL_ELEMENT)) {
+  customElements.define(PANEL_ELEMENT, MedicationReminderPanel);
 }

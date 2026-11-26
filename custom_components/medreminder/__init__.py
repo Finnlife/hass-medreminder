@@ -18,6 +18,7 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.util import dt as dt_util
@@ -30,13 +31,15 @@ from .const import (
     PANEL_URL,
     PLATFORMS,
 )
+from .entity import service_device_info
+from .legacy import async_check_legacy_folder, async_migrate_legacy_install
 from .manager import MedicationManager
 from .models import resolve_intake_time
 from .printing import LabelPrinter
 from .websocket import async_register_websocket_api
 
 CARD_MODULE_URL = (
-    f"{PANEL_STATIC_URL}/medication-reminder-card.js?v={FRONTEND_CACHE_KEY}"
+    f"{PANEL_STATIC_URL}/medreminder-card.js?v={FRONTEND_CACHE_KEY}"
 )
 
 SERVICES = (
@@ -52,11 +55,33 @@ SERVICES = (
 )
 
 
+def _panel_exists(hass: HomeAssistant) -> bool:
+    """Return whether the panel is registered already.
+
+    ``frontend.async_panel_exists`` only exists since Home Assistant 2026.5;
+    before that the panels are looked up where the frontend keeps them.
+    """
+    if hasattr(frontend, "async_panel_exists"):
+        return frontend.async_panel_exists(hass, PANEL_URL)
+    return PANEL_URL in hass.data.get(frontend.DATA_PANELS, {})
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Medication Reminder from a config entry."""
     domain_data = hass.data.setdefault(DOMAIN, {"managers": {}, "printers": {}})
     domain_data.setdefault("printers", {})
+    # Before the data is loaded: an install from before the domain rename brings
+    # its data, entities and devices along.
+    await async_migrate_legacy_install(hass, entry)
+    await async_check_legacy_folder(hass)
     manager = MedicationManager(hass)
+    # The medication devices hang below this one, linked by its registry id, so
+    # it has to exist before any of them is created.
+    manager.hub_device_id = (
+        dr.async_get(hass)
+        .async_get_or_create(config_entry_id=entry.entry_id, **service_device_info())
+        .id
+    )
     await manager.async_initialize()
     domain_data["managers"][entry.entry_id] = manager
     domain_data["printers"][entry.entry_id] = LabelPrinter(hass, entry.options)
@@ -77,18 +102,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ]
         )
         # Loading the card module as an extra frontend script makes
-        # `custom:medication-reminder-card` available without asking the user
+        # `custom:medreminder-card` available without asking the user
         # to add a Lovelace resource by hand.
         frontend.add_extra_js_url(hass, CARD_MODULE_URL)
         domain_data["api_registered"] = True
 
-    if not frontend.async_panel_exists(hass, PANEL_URL):
+    if not _panel_exists(hass):
         await panel_custom.async_register_panel(
             hass=hass,
-            webcomponent_name="medication-reminder-panel",
+            webcomponent_name=f"{DOMAIN}-panel",
             frontend_url_path=PANEL_URL,
             module_url=(
-                f"{PANEL_STATIC_URL}/medication-reminder-panel.js?v={FRONTEND_CACHE_KEY}"
+                f"{PANEL_STATIC_URL}/medreminder-panel.js?v={FRONTEND_CACHE_KEY}"
             ),
             sidebar_title="Medications",
             sidebar_icon="mdi:pill-multiple",

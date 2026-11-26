@@ -32,9 +32,8 @@ def async_prune_registries(
             if domain != DOMAIN or identifier == DOMAIN:
                 continue
             if identifier not in medication_ids:
-                device_registry.async_update_device(
-                    device.id, remove_config_entry_id=entry_id
-                )
+                # The device belongs to this entry alone, so it goes entirely.
+                device_registry.async_remove_device(device.id)
 
 
 @callback

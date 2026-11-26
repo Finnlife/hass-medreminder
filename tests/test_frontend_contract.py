@@ -7,13 +7,13 @@ import unittest
 
 ROOT = Path(__file__).parents[1]
 PANEL = (
-    ROOT / "custom_components/medication_reminder/frontend/medication-reminder-panel.js"
+    ROOT / "custom_components/medreminder/frontend/medreminder-panel.js"
 )
-WEBSOCKET = ROOT / "custom_components/medication_reminder/websocket.py"
-STYLES = ROOT / "custom_components/medication_reminder/frontend/styles.js"
-CARD = ROOT / "custom_components/medication_reminder/frontend/medication-reminder-card.js"
-LOCALIZE = ROOT / "custom_components/medication_reminder/frontend/localize.js"
-INIT = ROOT / "custom_components/medication_reminder/__init__.py"
+WEBSOCKET = ROOT / "custom_components/medreminder/websocket.py"
+STYLES = ROOT / "custom_components/medreminder/frontend/styles.js"
+CARD = ROOT / "custom_components/medreminder/frontend/medreminder-card.js"
+LOCALIZE = ROOT / "custom_components/medreminder/frontend/localize.js"
+INIT = ROOT / "custom_components/medreminder/__init__.py"
 
 
 class MarkupEscapingTests(unittest.TestCase):
@@ -189,12 +189,27 @@ class LovelaceCardContractTests(unittest.TestCase):
 
     def test_card_and_editor_are_registered_once(self) -> None:
         card = CARD.read_text(encoding="utf-8")
-        self.assertIn('const CARD_TYPE = "medication-reminder-card"', card)
+        self.assertIn('const DOMAIN = "medreminder"', card)
+        self.assertIn("const CARD_TYPE = `${DOMAIN}-card`", card)
         self.assertIn("if (!customElements.get(CARD_TYPE))", card)
         self.assertIn("if (!customElements.get(EDITOR_TYPE))", card)
         self.assertIn("customElements.define(CARD_TYPE, MedicationReminderCard)", card)
         self.assertIn("window.customCards = window.customCards || []", card)
         self.assertIn("type: CARD_TYPE", card)
+
+    def test_the_card_type_from_before_the_rename_keeps_working(self) -> None:
+        card = CARD.read_text(encoding="utf-8")
+        self.assertIn('const LEGACY_CARD_TYPE = "medication-reminder-card"', card)
+        self.assertIn(
+            "customElements.define(LEGACY_CARD_TYPE, class extends MedicationReminderCard {})",
+            card,
+        )
+        # Only the new type is offered in the card picker.
+        self.assertNotIn("type: LEGACY_CARD_TYPE", card)
+        # The editor switches an old card over, and the type is set after the
+        # form values so an old type in them cannot win.
+        self.assertIn("this.config.type === `custom:${LEGACY_CARD_TYPE}`", card)
+        self.assertIn("{ ...value, type: `custom:${CARD_TYPE}` }", card)
 
     def test_card_offers_a_visual_editor_and_stub_config(self) -> None:
         card = CARD.read_text(encoding="utf-8")
@@ -220,7 +235,7 @@ class LovelaceCardContractTests(unittest.TestCase):
 
     def test_card_module_is_served_as_a_frontend_resource(self) -> None:
         init = INIT.read_text(encoding="utf-8")
-        self.assertIn("medication-reminder-card.js", init)
+        self.assertIn("medreminder-card.js", init)
         self.assertIn("frontend.add_extra_js_url(hass, CARD_MODULE_URL)", init)
 
 
@@ -236,7 +251,7 @@ class LanguageOverrideContractTests(unittest.TestCase):
     def test_override_reads_the_url_before_the_session(self) -> None:
         localize = LOCALIZE.read_text(encoding="utf-8")
         self.assertIn("urlOverride() || storedOverride()", localize)
-        self.assertIn('const OVERRIDE_KEY = "medication_reminder_language"', localize)
+        self.assertIn('const OVERRIDE_KEY = "medreminder_language"', localize)
 
     def test_storage_access_cannot_break_the_frontend(self) -> None:
         localize = LOCALIZE.read_text(encoding="utf-8")

@@ -12,7 +12,7 @@ import unittest
 
 
 ROOT = Path(__file__).parents[1]
-COMPONENT = ROOT / "custom_components" / "medication_reminder"
+COMPONENT = ROOT / "custom_components" / "medreminder"
 CHANGELOG = ROOT / "CHANGELOG.md"
 
 

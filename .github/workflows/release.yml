@@ -11,7 +11,7 @@ on:
   push:
     branches: [main]
     paths:
-      - custom_components/medication_reminder/manifest.json
+      - custom_components/medreminder/manifest.json
   workflow_dispatch:
 
 permissions:
@@ -40,7 +40,7 @@ jobs:
       - name: Read the version from the manifest
         id: version
         run: |
-          version=$(python -c "import json; print(json.load(open('custom_components/medication_reminder/manifest.json'))['version'])")
+          version=$(python -c "import json; print(json.load(open('custom_components/medreminder/manifest.json'))['version'])")
           if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "Manifest version '$version' is not MAJOR.MINOR.PATCH" >&2
             exit 1
@@ -75,7 +75,7 @@ jobs:
         run: |
           python -c "
           import json, pathlib, re, sys
-          root = pathlib.Path('custom_components/medication_reminder')
+          root = pathlib.Path('custom_components/medreminder')
           version = json.loads((root / 'manifest.json').read_text())['version']
           match = re.search(r'FRONTEND_CACHE_KEY: Final = \"([^\"]+)\"', (root / 'const.py').read_text())
           if match is None:
@@ -88,7 +88,7 @@ jobs:
       - name: Install the integration requirements
         if: steps.existing.outputs.exists == 'false'
         run: |
-          requirements=$(python -c "import json; print(' '.join(json.load(open('custom_components/medication_reminder/manifest.json'))['requirements']))")
+          requirements=$(python -c "import json; print(' '.join(json.load(open('custom_components/medreminder/manifest.json'))['requirements']))")
           echo "Installing: $requirements"
           pip install $requirements
 
@@ -96,8 +96,8 @@ jobs:
         if: steps.existing.outputs.exists == 'false'
         run: |
           python -m unittest discover -s tests
-          python -m compileall -q custom_components/medication_reminder tests
-          for file in custom_components/medication_reminder/frontend/*.js; do
+          python -m compileall -q custom_components/medreminder tests
+          for file in custom_components/medreminder/frontend/*.js; do
             node --check "$file"
           done
 
@@ -109,7 +109,7 @@ jobs:
         if: steps.existing.outputs.exists == 'false'
         run: |
           cd custom_components
-          zip -r "$GITHUB_WORKSPACE/medication_reminder.zip" medication_reminder
+          zip -r "$GITHUB_WORKSPACE/medreminder.zip" medreminder
 
       - name: Create the tag and the release
         if: steps.existing.outputs.exists == 'false'
@@ -127,4 +127,4 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "${VERSION}" \
             --notes-file release-notes.md \
-            medication_reminder.zip
+            medreminder.zip

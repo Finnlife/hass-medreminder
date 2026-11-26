@@ -9,7 +9,7 @@ from copy import deepcopy
 from datetime import date, datetime
 from typing import Any
 
-from .const import ALL_STATUSES, STORAGE_MINOR_VERSION, STORAGE_VERSION
+from .const import ALL_STATUSES, DOMAIN, STORAGE_MINOR_VERSION, STORAGE_VERSION
 from .migrations import migrate_storage
 from .models import (
     MAX_NOTES_LENGTH,
@@ -25,7 +25,9 @@ from .models import (
 # must look like an ID the integration would have generated itself.
 ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
-BACKUP_FORMAT = "medication_reminder_backup"
+BACKUP_FORMAT = f"{DOMAIN}_backup"
+# Formats written before the domain rename; such backups still restore.
+LEGACY_BACKUP_FORMATS = ("medication_reminder_backup",)
 BACKUP_VERSION = 1
 COLLECTIONS = ("medications", "packages", "regimens", "occurrences")
 OCCURRENCE_STATUSES = ALL_STATUSES
@@ -45,7 +47,7 @@ def build_backup_download(
     }
     timestamp = exported_at.strftime("%Y-%m-%d_%H-%M-%S")
     return {
-        "filename": f"medication-reminder-backup_{timestamp}.json",
+        "filename": f"{DOMAIN}-backup_{timestamp}.json",
         "mime_type": "application/json;charset=utf-8",
         "content": json.dumps(envelope, ensure_ascii=False, indent=2),
     }
@@ -53,7 +55,10 @@ def build_backup_download(
 
 def prepare_backup_import(payload: dict[str, Any]) -> dict[str, Any]:
     """Validate and migrate a backup before it may replace live data."""
-    if not isinstance(payload, dict) or payload.get("format") != BACKUP_FORMAT:
+    if not isinstance(payload, dict) or payload.get("format") not in (
+        BACKUP_FORMAT,
+        *LEGACY_BACKUP_FORMATS,
+    ):
         raise ValueError("Invalid Medication Reminder backup")
     backup_version = _integer(payload.get("backup_version"), "backup_version")
     if backup_version != BACKUP_VERSION:

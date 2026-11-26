@@ -8,11 +8,11 @@ untersuchen, neu starten und verändern darf, ohne Produktivdaten zu berühren.
 Python 3 und Node.js installieren und im Repository-Stamm ausführen:
 
 ```shell
-pip install -r <(python -c "import json;print(chr(10).join(json.load(open('custom_components/medication_reminder/manifest.json'))['requirements']))")
+pip install -r <(python -c "import json;print(chr(10).join(json.load(open('custom_components/medreminder/manifest.json'))['requirements']))")
 python -m unittest discover -s tests -v
-python -m compileall custom_components/medication_reminder tests
-node --check custom_components/medication_reminder/frontend/localize.js
-node --check custom_components/medication_reminder/frontend/medication-reminder-panel.js
+python -m compileall custom_components/medreminder tests
+node --check custom_components/medreminder/frontend/localize.js
+node --check custom_components/medreminder/frontend/medreminder-panel.js
 ```
 
 Mit installiertem Docker lässt sich zusätzlich Home Assistants Validator starten:
@@ -131,7 +131,7 @@ abgeschaltet, weil sie nur für Integrationen gilt, die in die HACS-Standardlist
 wollen — dafür braucht es einen Pull Request gegen `home-assistant/brands`.
 
 **`release.yml`** veröffentlicht ein Release, sobald sich die Version in
-`custom_components/medication_reminder/manifest.json` auf `main` ändert. HACS
+`custom_components/medreminder/manifest.json` auf `main` ändert. HACS
 bietet immer das an, worauf das neueste GitHub-Release zeigt; dieser Schritt
 liefert das Update also tatsächlich aus.
 
@@ -150,7 +150,7 @@ Ein Release zu schneiden heißt damit:
 
 Der Workflow führt danach Tests und `hassfest` erneut aus, legt das Tag an und
 veröffentlicht ein Release mit generierten Notizen sowie einer
-`medication_reminder.zip` für die manuelle Installation. HACS selbst liest die
+`medreminder.zip` für die manuelle Installation. HACS selbst liest die
 Dateien aus dem Tag und ignoriert dieses Asset. Dieselbe Version zweimal zu
 veröffentlichen ist wirkungslos, der Workflow kann also gefahrlos erneut laufen.
 
@@ -178,7 +178,7 @@ Das Panel akzeptiert zusätzlich `?lang=` in der URL, praktisch für
 skriptgesteuerte Aufnahmen:
 
 ```
-/medication_reminder?lang=de
+/medreminder?lang=de
 ```
 
 Eine Sprache in der URL sticht die in der Konsole gesetzte.
@@ -234,7 +234,7 @@ Custom Integration dieses Icon selbst mitliefern, in einem `brand/`-Verzeichnis;
 ein lokales Bild hat Vorrang vor dem Brands-CDN. Ein Pull Request gegen
 `home-assistant/brands` ist nicht nötig.
 
-In `custom_components/medication_reminder/brand/` liegen deshalb `icon.png`
+In `custom_components/medreminder/brand/` liegen deshalb `icon.png`
 (256x256) und `icon@2x.png` (512x512), abgeleitet aus dem Panel-Logo. Home
 Assistant greift überall dort auf das Icon zurück, wo sonst ein Logo stünde —
 eine eigene `logo.png` würde die quadratische Grafik nur verdoppeln.
@@ -249,4 +249,4 @@ Das Skript schneidet den transparenten Rand weg, füllt die Grafik zu einem
 Quadrat auf statt sie zu verzerren, und schreibt beide geforderten Größen.
 
 Ältere Home-Assistant-Versionen lesen das Icon weiterhin aus dem Brands-CDN, wo
-es unter `custom_integrations/medication_reminder/` eingetragen werden müsste.
+es unter `custom_integrations/medreminder/` eingetragen werden müsste.

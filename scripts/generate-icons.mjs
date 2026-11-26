@@ -14,7 +14,7 @@ import { resolve } from "node:path";
 import * as mdi from "@mdi/js";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const FRONTEND = resolve(ROOT, "custom_components/medication_reminder/frontend");
+const FRONTEND = resolve(ROOT, "custom_components/medreminder/frontend");
 const OUTPUT = resolve(ROOT, "docs/screenshot/icons.js");
 
 const names = [

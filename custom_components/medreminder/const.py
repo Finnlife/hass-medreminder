@@ -2,14 +2,14 @@
 
 from typing import Final
 
-DOMAIN: Final = "medication_reminder"
+DOMAIN: Final = "medreminder"
 PLATFORMS: Final = ["binary_sensor", "calendar", "sensor", "todo"]
 STORAGE_KEY: Final = f"{DOMAIN}.data"
 STORAGE_VERSION: Final = 1
 STORAGE_MINOR_VERSION: Final = 7
 PANEL_URL: Final = DOMAIN
 PANEL_STATIC_URL: Final = f"/{DOMAIN}_frontend"
-FRONTEND_CACHE_KEY: Final = "0.9.5"
+FRONTEND_CACHE_KEY: Final = "0.10.0"
 
 EVENT_DUE: Final = f"{DOMAIN}_due"
 EVENT_TAKEN: Final = f"{DOMAIN}_taken"

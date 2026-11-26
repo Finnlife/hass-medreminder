@@ -8,7 +8,7 @@ on:
   push:
     branches: [main]
     paths:
-      - custom_components/medication_reminder/frontend/**
+      - custom_components/medreminder/frontend/**
       - docs/screenshot/**
       - scripts/capture-screenshots.mjs
       - .github/workflows/screenshots.yml

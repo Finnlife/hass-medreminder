@@ -8,11 +8,11 @@ restart, and test without touching production data.
 Install Python 3 and Node.js, then run from the repository root:
 
 ```shell
-pip install -r <(python -c "import json;print(chr(10).join(json.load(open('custom_components/medication_reminder/manifest.json'))['requirements']))")
+pip install -r <(python -c "import json;print(chr(10).join(json.load(open('custom_components/medreminder/manifest.json'))['requirements']))")
 python -m unittest discover -s tests -v
-python -m compileall custom_components/medication_reminder tests
-node --check custom_components/medication_reminder/frontend/localize.js
-node --check custom_components/medication_reminder/frontend/medication-reminder-panel.js
+python -m compileall custom_components/medreminder tests
+node --check custom_components/medreminder/frontend/localize.js
+node --check custom_components/medreminder/frontend/medreminder-panel.js
 ```
 
 For Home Assistant's integration validator, install Docker and run:
@@ -129,7 +129,7 @@ because it only applies to integrations that want to join the HACS default list,
 which requires a pull request against `home-assistant/brands`.
 
 **`release.yml`** publishes a release whenever the version in
-`custom_components/medication_reminder/manifest.json` changes on `main`. HACS
+`custom_components/medreminder/manifest.json` changes on `main`. HACS
 offers whatever the newest GitHub release points at, so this is the step that
 actually ships an update to installations.
 
@@ -146,7 +146,7 @@ Cutting a release therefore means:
 3. Push to `main`.
 
 The workflow then re-runs the tests and `hassfest`, creates the tag, and
-publishes a release with generated notes plus a `medication_reminder.zip` for
+publishes a release with generated notes plus a `medreminder.zip` for
 manual installation. HACS itself reads the files from the tag and ignores that
 asset. Publishing the same version twice is a no-op, so the workflow is safe to
 re-run.
@@ -175,7 +175,7 @@ The panel also accepts `?lang=` in its URL, which is handy for scripted
 captures:
 
 ```
-/medication_reminder?lang=en
+/medreminder?lang=en
 ```
 
 A language in the URL wins over one set in the console.
@@ -228,7 +228,7 @@ page and on its devices. Since Home Assistant 2026.3 a custom integration can
 ship that icon itself, in a `brand/` directory, and a local image takes priority
 over the brands CDN. No pull request against `home-assistant/brands` is needed.
 
-`custom_components/medication_reminder/brand/` therefore holds `icon.png`
+`custom_components/medreminder/brand/` therefore holds `icon.png`
 (256x256) and `icon@2x.png` (512x512), derived from the panel logo. Home
 Assistant falls back to the icon wherever a logo would be used, so a separate
 `logo.png` would only duplicate the square artwork.
@@ -243,4 +243,4 @@ The script trims the transparent border, pads the artwork to a square rather
 than distorting it, and writes both required sizes.
 
 Older Home Assistant versions still read the icon from the brands CDN, where it
-would have to be added under `custom_integrations/medication_reminder/`.
+would have to be added under `custom_integrations/medreminder/`.

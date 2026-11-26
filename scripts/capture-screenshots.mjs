@@ -53,8 +53,8 @@ function startServer() {
       // The panel references its assets under the path Home Assistant serves
       // them from, so the harness has to answer on that path too.
       const path = decodeURIComponent(url.pathname).replace(
-        /^\/medication_reminder_frontend\//,
-        "/custom_components/medication_reminder/frontend/",
+        /^\/medreminder_frontend\//,
+        "/custom_components/medreminder/frontend/",
       );
       const file = resolve(ROOT, `.${path}`);
       if (!file.startsWith(ROOT)) {

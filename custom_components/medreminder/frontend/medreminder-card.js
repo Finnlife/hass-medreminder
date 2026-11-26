@@ -7,17 +7,19 @@
  */
 import { createTranslator, onLanguageChange, resolveLanguage } from "./localize.js";
 
-const CARD_TYPE = "medication-reminder-card";
+// Integration domain; the card type, the WebSocket API, its events and the
+// panel are named after it.
+const DOMAIN = "medreminder";
+const CARD_TYPE = `${DOMAIN}-card`;
+// Type of the card before the domain rename. Dashboards that still use it keep
+// working, and opening such a card in the editor saves it under the new type.
+const LEGACY_CARD_TYPE = "medication-reminder-card";
 const EDITOR_TYPE = `${CARD_TYPE}-editor`;
 const OPEN_STATUSES = ["pending", "partial"];
 const POLL_INTERVAL = 15000;
 const DOMAIN_EVENTS = [
-  "medication_reminder_taken",
-  "medication_reminder_skipped",
-  "medication_reminder_missed",
-  "medication_reminder_due",
-  "medication_reminder_postponed",
-];
+  "taken", "skipped", "missed", "due", "postponed",
+].map((event) => `${DOMAIN}_${event}`);
 
 const DEFAULTS = Object.freeze({
   mode: "due",
@@ -230,7 +232,7 @@ class MedicationReminderCard extends HTMLElement {
   async call(type, payload = {}) {
     if (!this.hass) throw new Error("Home Assistant is not connected yet.");
     return this.hass.connection.sendMessagePromise({
-      type: `medication_reminder/${type}`, ...payload,
+      type: `${DOMAIN}/${type}`, ...payload,
     });
   }
 
@@ -358,7 +360,7 @@ class MedicationReminderCard extends HTMLElement {
           ${hidden > 0 ? `<div class="more">${this.t("card.more_open", { count: hidden })}</div>` : ""}
           ${this.renderUpcoming()}
           ${this.renderStock()}
-          <a class="panel-link" href="/medication_reminder">${this.t("card.open_panel")}</a>
+          <a class="panel-link" href="/${DOMAIN}">${this.t("card.open_panel")}</a>
         ` : ""}
       </div>
     </ha-card>`;
@@ -530,6 +532,9 @@ class MedicationReminderCardEditor extends HTMLElement {
 
   setConfig(config) {
     this.config = { ...DEFAULTS, ...(config || {}) };
+    // A card from before the domain rename is switched to the new type as soon
+    // as it is opened, so saving it in the editor stores the new type.
+    this._switchType = this.config.type === `custom:${LEGACY_CARD_TYPE}`;
     this.render();
   }
 
@@ -540,6 +545,17 @@ class MedicationReminderCardEditor extends HTMLElement {
   }
 
   get hass() { return this._hass; }
+
+  connectedCallback() {
+    this.render();
+  }
+
+  emitConfig(value) {
+    this.dispatchEvent(new CustomEvent("config-changed", {
+      detail: { config: { ...value, type: `custom:${CARD_TYPE}` } },
+      bubbles: true, composed: true,
+    }));
+  }
 
   schema() {
     return EDITOR_FIELDS.map(([name, selector]) => {
@@ -565,21 +581,25 @@ class MedicationReminderCardEditor extends HTMLElement {
       this._form.computeLabel = (field) => this.t(`card.editor.${field.name}`);
       this._form.addEventListener("value-changed", (event) => {
         event.stopPropagation();
-        this.dispatchEvent(new CustomEvent("config-changed", {
-          detail: { config: { type: `custom:${CARD_TYPE}`, ...event.detail.value } },
-          bubbles: true, composed: true,
-        }));
+        this.emitConfig(event.detail.value);
       });
       this.shadowRoot.append(this._form);
     }
     this._form.hass = this.hass;
     this._form.schema = this.schema();
     this._form.data = this.config;
+    if (this._switchType && this.isConnected) {
+      this._switchType = false;
+      this.emitConfig(this.config);
+    }
   }
 }
 
 if (!customElements.get(CARD_TYPE)) {
   customElements.define(CARD_TYPE, MedicationReminderCard);
+}
+if (!customElements.get(LEGACY_CARD_TYPE)) {
+  customElements.define(LEGACY_CARD_TYPE, class extends MedicationReminderCard {});
 }
 if (!customElements.get(EDITOR_TYPE)) {
   customElements.define(EDITOR_TYPE, MedicationReminderCardEditor);

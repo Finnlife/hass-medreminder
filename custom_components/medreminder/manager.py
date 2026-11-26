@@ -69,6 +69,8 @@ class MedicationManager:
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
         self._store = MedicationStore(hass)
+        # Registry id of the hub device the medication devices hang below.
+        self.hub_device_id: str | None = None
         self.data: dict[str, Any] = empty_data()
         self._lock = asyncio.Lock()
         self._listeners: set[Callable[[], None]] = set()

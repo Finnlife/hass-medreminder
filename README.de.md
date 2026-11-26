@@ -1,6 +1,6 @@
 # Medication Reminder für Home Assistant
 
-<img src="https://raw.githubusercontent.com/Finnlife/hass-medreminder/main/custom_components/medication_reminder/frontend/logo.png" alt="Medication-Reminder-Logo" width="160">
+<img src="https://raw.githubusercontent.com/Finnlife/hass-medreminder/main/custom_components/medreminder/frontend/logo.png" alt="Medication-Reminder-Logo" width="160">
 
 [English](https://github.com/Finnlife/hass-medreminder/blob/main/README.md)
 
@@ -41,7 +41,7 @@ sehr man diesem Code vertrauen sollte — lies ihn selbst, bevor du ihn auf eine
 Instanz laufen lässt, die dir wichtig ist, und beachte den Warnhinweis oben zu
 echten Medikamenten.
 
-## Implementierte Funktionen (v0.9.5)
+## Implementierte Funktionen (v0.10.0)
 
 - Medikamentenstammdaten mit Hersteller, Barcode/Produktcode, Stärke,
   Darreichungsform, Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen
@@ -104,8 +104,38 @@ echten Medikamenten.
    **Medication Reminder** suchen und die Integration einmal hinzufügen.
 5. Den neuen Sidebar-Eintrag **Medications** öffnen.
 
-Alternativ `custom_components/medication_reminder` in das gleichnamige Verzeichnis
+Alternativ `custom_components/medreminder` in das gleichnamige Verzeichnis
 der Home-Assistant-Konfiguration kopieren und Home Assistant neu starten.
+
+### Update von 0.9 oder älter
+
+Mit Version 0.10 heißt die Integrations-Domain `medreminder` statt
+`medication_reminder`, weil eine andere Integration im HACS-Katalog den alten
+Namen bereits nutzt. Daten, Entitäten, Geräte und Druckeinstellungen werden
+automatisch übernommen, und die Entity-IDs bleiben gleich, Dashboards und
+Verlauf funktionieren also weiter:
+
+1. **Medication Reminder** in HACS aktualisieren und Home Assistant neu starten.
+2. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen**
+   **Medication Reminder** erneut hinzufügen. Den alten Eintrag vorher nicht
+   löschen; das Einrichten der neuen Integration übernimmt ihn und entfernt ihn
+   danach. Steht der Name doppelt in der Liste, meldet die alte Kopie „bereits
+   eingerichtet“, dann einfach den anderen Eintrag wählen.
+3. Meldet Home Assistant danach unter **Einstellungen → Reparaturen**, dass die
+   alte Kopie noch installiert ist, `custom_components/medication_reminder`
+   löschen und Home Assistant noch einmal neu starten.
+4. Automatisierungen und Skripte anpassen: Aktionen heißen jetzt
+   `medreminder.*` statt `medication_reminder.*`, Events `medreminder_*` statt
+   `medication_reminder_*`, und das Panel liegt unter `/medreminder`.
+5. In den Dashboards den Kartentyp von `custom:medreminder-card` auf
+   `custom:medreminder-card` ändern. Karten mit dem alten Typ funktionieren
+   vorerst weiter, und wer so eine Karte im Karteneditor öffnet und speichert,
+   stellt sie automatisch um. Falls du die Karte früher von Hand unter
+   **Ressourcen** eingetragen hast, diesen Eintrag entfernen: Die Integration
+   lädt die Karte selbst.
+
+Mit einer älteren Version erstellte Backups lassen sich weiterhin
+wiederherstellen.
 
 Aktionsbuttons benötigen einen kompatiblen Benachrichtigungsdienst, beispielsweise
 `notify.mobile_app_*` der Companion App. Andere Dienste können die Nachricht ohne
@@ -146,28 +176,28 @@ verschwinden auch Gerät und Entitäten aus der Registry.
 
 Aktionen:
 
-- `medication_reminder.record_intake`
-- `medication_reminder.record_unplanned_intake`
-- `medication_reminder.schedule_intake`
-- `medication_reminder.cancel_intake`
-- `medication_reminder.skip_intake`
-- `medication_reminder.snooze`
-- `medication_reminder.postpone_interval`
-- `medication_reminder.add_package`
-- `medication_reminder.delete_all_data` (benötigt `confirmation: DELETE`)
+- `medreminder.record_intake`
+- `medreminder.record_unplanned_intake`
+- `medreminder.schedule_intake`
+- `medreminder.cancel_intake`
+- `medreminder.skip_intake`
+- `medreminder.snooze`
+- `medreminder.postpone_interval`
+- `medreminder.add_package`
+- `medreminder.delete_all_data` (benötigt `confirmation: DELETE`)
 
 Events:
 
-- `medication_reminder_due`
-- `medication_reminder_taken`
-- `medication_reminder_skipped`
-- `medication_reminder_missed`
-- `medication_reminder_low_stock`
-- `medication_reminder_postponed`
+- `medreminder_due`
+- `medreminder_taken`
+- `medreminder_skipped`
+- `medreminder_missed`
+- `medreminder_low_stock`
+- `medreminder_postponed`
 
 ## Einmalige Einnahmen aus Automatisierungen
 
-`medication_reminder.schedule_intake` plant eine einzelne Einnahme außerhalb
+`medreminder.schedule_intake` plant eine einzelne Einnahme außerhalb
 wiederkehrender Pläne. Damit kann eine Automatisierung auf ein Ereignis reagieren:
 
 ```yaml
@@ -179,7 +209,7 @@ automation:
         zone: zone.fitnessstudio
         event: leave
     actions:
-      - action: medication_reminder.schedule_intake
+      - action: medreminder.schedule_intake
         data:
           items:
             - medication: Magnesium
@@ -225,7 +255,7 @@ die Einstellungen eines wiederkehrenden Plans.
 Die Aktion liefert die angelegte Einnahme zurück, ein Folgeschritt kann sie nutzen:
 
 ```yaml
-      - action: medication_reminder.schedule_intake
+      - action: medreminder.schedule_intake
         response_variable: geplant
         data:
           items:
@@ -237,25 +267,25 @@ Die Aktion liefert die angelegte Einnahme zurück, ein Folgeschritt kann sie nut
           message: "Magnesium geplant für {{ geplant.scheduled_at }}"
 ```
 
-`medication_reminder.cancel_intake` entfernt eine geplante einmalige Einnahme
+`medreminder.cancel_intake` entfernt eine geplante einmalige Einnahme
 wieder, per `occurrence_id` oder per `reference`. Es greift nur auf einmalige,
 noch offene und unberührte Einnahmen zu und schreibt nichts in den Verlauf — eine
 abgebrochene Planung gilt also nicht als ausgelassen:
 
 ```yaml
-      - action: medication_reminder.cancel_intake
+      - action: medreminder.cancel_intake
         data:
           reference: "sport-{{ now().date() }}"
 ```
 
 ## Lovelace-Karte
 
-Die Integration registriert `custom:medication-reminder-card` automatisch, eine
+Die Integration registriert `custom:medreminder-card` automatisch, eine
 Lovelace-Ressource muss also nicht von Hand eingetragen werden. Die Karte lässt
 sich über die Kartenauswahl (**Medication Reminder**) oder in YAML einbinden:
 
 ```yaml
-type: custom:medication-reminder-card
+type: custom:medreminder-card
 title: Medikamente
 mode: due
 max: 5
@@ -296,7 +326,7 @@ erst, wenn Home Assistant die neuen Dateien geladen hat. Der Reihe nach:
    den alten Code aus und registriert auch dessen alte Modul-URL. Erst ein
    Neustart lädt die neuen Dateien.
 2. **Prüfen, ob die Datei ausgeliefert wird.** Rufe
-   `/medication_reminder_frontend/medication-reminder-card.js` auf deiner
+   `/medreminder_frontend/medreminder-card.js` auf deiner
    Home-Assistant-Adresse auf. Ein 404 heißt, das Update ist nicht im
    `custom_components`-Verzeichnis angekommen; alles andere heißt, die Datei ist da.
 3. **Browser ohne Cache neu laden** (Strg+Umschalt+R, in der Companion App den
@@ -309,7 +339,7 @@ erst, wenn Home Assistant die neuen Dateien geladen hat. Der Reihe nach:
 
 Als Rückfalloption lässt sich das Modul auch von Hand unter **Einstellungen →
 Dashboards → Drei-Punkte-Menü → Ressourcen** als JavaScript-Modul mit der URL
-`/medication_reminder_frontend/medication-reminder-card.js` eintragen.
+`/medreminder_frontend/medreminder-card.js` eintragen.
 
 ## Etiketten drucken
 
@@ -340,7 +370,7 @@ also etwa dem Medikamentennamen oder einem Packungs-Spitznamen:
   "template": "qr_nickname",
   "data": { "code": "med23456", "name": "Magnesium" },
   "copies": 1,
-  "job_id": "medication_reminder_1f3c9a2b4d5e"
+  "job_id": "medreminder_1f3c9a2b4d5e"
 }
 ```
 
@@ -377,7 +407,7 @@ falls du später zu ihm zurückkehren möchtest.
 
 ## Speicherung und Verhalten
 
-Alle Daten bleiben lokal unter `.storage/medication_reminder.data`. Nach einem
+Alle Daten bleiben lokal unter `.storage/medreminder.data`. Nach einem
 Neustart werden verpasste Termine für bis zu 30 Tage nachgebildet. Alte mobile
 Aktionen sind idempotent und buchen Bestand nicht doppelt ab. Bis zu 2.000
 abgeschlossene Vorgänge werden gespeichert; offene Vorgänge bleiben erhalten.
@@ -407,7 +437,7 @@ Home-Assistant-Aktion.
 Das Speicherschema ist versioniert; alter manueller Bestand wird verlustfrei in
 eine physische `Legacy`-Packung überführt. Der Bestand wird danach immer aus den
 Restmengen der Packungen berechnet. Das Projekt ist weiterhin vor Version 1.0. Vor
-0.x-Updates sollte deshalb eine Sicherung von `.storage/medication_reminder.data`
+0.x-Updates sollte deshalb eine Sicherung von `.storage/medreminder.data`
 erstellt werden; der dauerhafte Kompatibilitätsvertrag gilt erst ab Version 1.0.
 
 ## Entwicklung und vollständiger Test

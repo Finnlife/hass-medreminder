@@ -30,7 +30,7 @@ jobs:
 
       - name: Install the integration requirements
         run: |
-          requirements=$(python -c "import json; print(' '.join(json.load(open('custom_components/medication_reminder/manifest.json'))['requirements']))")
+          requirements=$(python -c "import json; print(' '.join(json.load(open('custom_components/medreminder/manifest.json'))['requirements']))")
           echo "Installing: $requirements"
           pip install $requirements
 
@@ -38,11 +38,11 @@ jobs:
         run: python -m unittest discover -s tests -v
 
       - name: Byte-compile every module
-        run: python -m compileall custom_components/medication_reminder tests
+        run: python -m compileall custom_components/medreminder tests
 
       - name: Check the frontend syntax
         run: |
-          for file in custom_components/medication_reminder/frontend/*.js; do
+          for file in custom_components/medreminder/frontend/*.js; do
             node --check "$file"
           done
 

@@ -8,7 +8,7 @@ import unittest
 
 
 ROOT = Path(__file__).parents[1]
-INTEGRATION = ROOT / "custom_components/medication_reminder"
+INTEGRATION = ROOT / "custom_components/medreminder"
 FRONTEND = INTEGRATION / "frontend"
 
 
@@ -46,7 +46,7 @@ class LocalizationTests(unittest.TestCase):
     def test_every_literal_frontend_translation_key_exists(self) -> None:
         catalog_source = (FRONTEND / "localize.js").read_text(encoding="utf-8")
         english = _frontend_catalog("EN", catalog_source)
-        for name in ("medication-reminder-panel.js", "medication-reminder-card.js"):
+        for name in ("medreminder-panel.js", "medreminder-card.js"):
             source = (FRONTEND / name).read_text(encoding="utf-8")
             used = set(
                 re.findall(r'(?:this\.t|translate)\("([a-z0-9_.]+)"', source)

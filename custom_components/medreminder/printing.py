@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import (
+    DOMAIN,
     DEFAULT_BASE_TOPIC,
     DEFAULT_COPIES,
     DEFAULT_TEMPLATE,
@@ -115,7 +116,7 @@ class LabelPrinter:
             "template": self.template,
             "data": data,
             "copies": self.copies,
-            "job_id": f"medication_reminder_{uuid4().hex[:12]}",
+            "job_id": f"{DOMAIN}_{uuid4().hex[:12]}",
         }
         if self.label_size:
             job["label"] = self.label_size

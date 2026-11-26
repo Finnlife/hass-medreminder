@@ -9,7 +9,7 @@ import types
 import unittest
 
 
-ROOT = Path(__file__).parents[1] / "custom_components" / "medication_reminder"
+ROOT = Path(__file__).parents[1] / "custom_components" / "medreminder"
 package = types.ModuleType("backup_test_package")
 package.__path__ = [str(ROOT)]
 sys.modules.setdefault("backup_test_package", package)
@@ -130,7 +130,18 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(original, restored)
         self.assertEqual(original, self.data)
         self.assertEqual("application/json;charset=utf-8", download["mime_type"])
+        self.assertTrue(download["filename"].startswith("medreminder-backup_"))
         self.assertTrue(download["filename"].endswith(".json"))
+        self.assertEqual("medreminder_backup", envelope["format"])
+
+    def test_a_backup_from_before_the_domain_rename_still_restores(self) -> None:
+        download = backup.build_backup_download(self.data, datetime.now(timezone.utc))
+        envelope = json.loads(download["content"])
+        envelope["format"] = "medication_reminder_backup"
+        self.assertEqual(self.data, backup.prepare_backup_import(envelope))
+        envelope["format"] = "some_other_backup"
+        with self.assertRaises(ValueError):
+            backup.prepare_backup_import(envelope)
 
     def test_old_manual_stock_is_migrated_during_import(self) -> None:
         envelope = {

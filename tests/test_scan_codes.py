@@ -9,11 +9,11 @@ import unittest
 PATH = (
     Path(__file__).parents[1]
     / "custom_components"
-    / "medication_reminder"
+    / "medreminder"
     / "scan_codes.py"
 )
 spec = importlib.util.spec_from_file_location(
-    "medication_reminder_scan_codes_test", PATH
+    "medreminder_scan_codes_test", PATH
 )
 scan_codes = importlib.util.module_from_spec(spec)
 assert spec and spec.loader

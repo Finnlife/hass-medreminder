@@ -7,7 +7,7 @@ import types
 import unittest
 
 
-ROOT = Path(__file__).parents[1] / "custom_components" / "medication_reminder"
+ROOT = Path(__file__).parents[1] / "custom_components" / "medreminder"
 package = types.ModuleType("migration_test_package")
 package.__path__ = [str(ROOT)]
 sys.modules.setdefault("migration_test_package", package)

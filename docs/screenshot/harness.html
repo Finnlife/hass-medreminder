@@ -96,7 +96,7 @@ const hass = {
   language,
   connection: {
     sendMessagePromise: async (message) => {
-      if (message.type === "medication_reminder/get_state") {
+      if (message.type === "medreminder/get_state") {
         return JSON.parse(JSON.stringify(STATE));
       }
       return {};
@@ -111,10 +111,10 @@ window.__frozenNow = FROZEN_NOW;
 async function mount() {
   if (view === "card") {
     document.body.classList.add("card-only");
-    await import("../../custom_components/medication_reminder/frontend/medication-reminder-card.js");
-    const card = document.createElement("medication-reminder-card");
+    await import("../../custom_components/medreminder/frontend/medreminder-card.js");
+    const card = document.createElement("medreminder-card");
     card.setConfig({
-      type: "custom:medication-reminder-card",
+      type: "custom:medreminder-card",
       mode: "open",
       show_stock: true,
       stock_filter: "all",
@@ -125,8 +125,8 @@ async function mount() {
     card.hass = hass;
     window.__component = card;
   } else {
-    await import("../../custom_components/medication_reminder/frontend/medication-reminder-panel.js");
-    const panel = document.createElement("medication-reminder-panel");
+    await import("../../custom_components/medreminder/frontend/medreminder-panel.js");
+    const panel = document.createElement("medreminder-panel");
     document.getElementById("panel-stage").append(panel);
     panel.hass = hass;
     panel.activeTab = view;

@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 MODULE_PATH = (
     Path(__file__).parents[1]
     / "custom_components"
-    / "medication_reminder"
+    / "medreminder"
     / "schedule.py"
 )
 SPEC = importlib.util.spec_from_file_location("medication_schedule", MODULE_PATH)

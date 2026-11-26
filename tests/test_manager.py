@@ -57,14 +57,14 @@ def _install_home_assistant_stubs() -> None:
 
 
 def _import_component_module(name: str):
-    root = Path(__file__).parents[1] / "custom_components" / "medication_reminder"
-    package = types.ModuleType("custom_components.medication_reminder")
+    root = Path(__file__).parents[1] / "custom_components" / "medreminder"
+    package = types.ModuleType("custom_components.medreminder")
     package.__path__ = [str(root)]
     custom_components = types.ModuleType("custom_components")
     custom_components.__path__ = [str(root.parent)]
     sys.modules.setdefault("custom_components", custom_components)
-    sys.modules.setdefault("custom_components.medication_reminder", package)
-    return importlib.import_module(f"custom_components.medication_reminder.{name}")
+    sys.modules.setdefault("custom_components.medreminder", package)
+    return importlib.import_module(f"custom_components.medreminder.{name}")
 
 
 _install_home_assistant_stubs()
@@ -604,7 +604,7 @@ class ReminderLoopTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], manager.hass.services.calls)
         self.assertEqual(10.0, manager.data["medications"][0]["stock"])
         self.assertIn(
-            "medication_reminder_missed",
+            "medreminder_missed",
             [event for event, _data in manager.hass.bus.events],
         )
 

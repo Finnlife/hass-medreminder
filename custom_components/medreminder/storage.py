@@ -14,11 +14,11 @@ from .migrations import migrate_storage
 class MedicationStore(Store[dict[str, Any]]):
     """Store medication data and migrate older minor versions on load."""
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(self, hass: HomeAssistant, key: str = STORAGE_KEY) -> None:
         super().__init__(
             hass,
             STORAGE_VERSION,
-            STORAGE_KEY,
+            key,
             minor_version=STORAGE_MINOR_VERSION,
         )
 

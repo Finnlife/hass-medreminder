@@ -263,5 +263,11 @@
       "invalid_topic": "Gib ein Basis-Topic ohne die Platzhalter + und # an.",
       "invalid_template": "Gib den Namen einer Vorlage des Druckdienstes an."
     }
+  },
+  "issues": {
+    "legacy_folder": {
+      "title": "Die alte Kopie von Medication Reminder ist noch installiert",
+      "description": "Medication Reminder heißt jetzt `medreminder` statt `medication_reminder`, und deine Daten wurden übernommen. Die alte Kopie liegt noch in `{path}`. Lösche diesen Ordner und starte Home Assistant neu, sonst bietet Home Assistant sie weiter als zweite Integration gleichen Namens an."
+    }
   }
 }

@@ -10,6 +10,11 @@ from homeassistant.helpers.entity import Entity
 from .const import DOMAIN
 from .manager import MedicationManager
 
+# Home Assistant 2026.11 deprecated linking a device to its parent by identifier
+# and raises when an entity is re-added that way, for example after its entity
+# id was changed. Older versions do not know the registry-id variant yet.
+VIA_DEVICE_ID_SUPPORTED = "via_device_id" in DeviceInfo.__annotations__
+
 PACKAGE_UNIQUE_ID_MARKER = "_package_"
 PACKAGE_UNIQUE_ID_SUFFIX = "_stock"
 
@@ -84,8 +89,12 @@ class MedicationEntity(MedicationReminderEntity):
                 if part
             )
             or "Medication",
-            via_device=(DOMAIN, DOMAIN),
         )
+        hub_device_id = getattr(self.manager, "hub_device_id", None)
+        if VIA_DEVICE_ID_SUPPORTED and hub_device_id:
+            info["via_device_id"] = hub_device_id
+        else:
+            info["via_device"] = (DOMAIN, DOMAIN)
         if medication.get("barcode"):
             info["serial_number"] = medication["barcode"]
         return info

@@ -8,6 +8,6 @@ services:
       TZ: Europe/Berlin
     volumes:
       - ./.ha-test:/config
-      - ./custom_components/medication_reminder:/config/custom_components/medication_reminder:ro
+      - ./custom_components/medreminder:/config/custom_components/medreminder:ro
     ports:
       - "8123:8123"

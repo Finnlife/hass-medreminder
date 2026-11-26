@@ -9,6 +9,43 @@ Entries are grouped as **Added**, **Changed**, **Fixed**, **Removed** and
 project is still pre-1.0: the storage compatibility contract is not final until
 version 1.0.
 
+## 0.10.0
+
+The integration domain changed from `medication_reminder` to `medreminder`.
+Another integration in the HACS catalog already uses the old domain, and both
+would install into the same folder, so only one of them could ever be
+installed. This release is a breaking change for automations; the readme
+describes the upgrade step by step.
+
+### Changed
+
+- The domain is `medreminder`: actions are `medreminder.*`, events
+  `medreminder_*`, the panel lives at `/medreminder` and the integration
+  installs into `custom_components/medreminder`.
+- The Lovelace card is now `custom:medreminder-card`. Cards that still use
+  `custom:medication-reminder-card` keep working, and opening one in the card
+  editor switches it to the new type.
+- Backups are written as `medreminder_backup` files; backups made with an
+  earlier version still restore.
+- An install from an earlier version is moved over the first time the
+  integration is set up again: the stored data, and the entities and devices
+  with their entity ids, so dashboards and history keep working, and the label
+  printing options and entry title. The old entry is removed afterwards.
+  Entries of the other integration that uses the old domain are recognised and
+  left alone.
+- A repair issue points out the previous copy while it is still installed.
+
+### Fixed
+
+- Changing the entity id of a medication entity no longer fails on Home
+  Assistant 2026.11: the medication devices are linked to the hub device by its
+  registry id instead of the deprecated identifier link.
+- The integration sets up again on Home Assistant versions before 2026.5, down
+  to the minimum version 2025.6, which lacked the panel lookup it relied on.
+- Removing a medication no longer uses the device registry calls deprecated in
+  Home Assistant 2026.11.
+- Editing a card in the card editor always stores the card's own type.
+
 ## 0.9.5
 
 This release closes the findings of a security review. Several of them could be

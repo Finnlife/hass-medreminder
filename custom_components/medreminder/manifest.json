@@ -1,5 +1,5 @@
 {
-  "domain": "medication_reminder",
+  "domain": "medreminder",
   "name": "Medication Reminder",
   "after_dependencies": [
     "mqtt"
@@ -25,5 +25,5 @@
     "segno==1.6.6"
   ],
   "single_config_entry": true,
-  "version": "0.9.5"
+  "version": "0.10.0"
 }

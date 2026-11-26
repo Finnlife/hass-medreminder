@@ -1,6 +1,6 @@
 # Medication Reminder for Home Assistant
 
-<img src="https://raw.githubusercontent.com/Finnlife/hass-medreminder/main/custom_components/medication_reminder/frontend/logo.png" alt="Medication Reminder logo" width="160">
+<img src="https://raw.githubusercontent.com/Finnlife/hass-medreminder/main/custom_components/medreminder/frontend/logo.png" alt="Medication Reminder logo" width="160">
 
 [Deutsch](https://github.com/Finnlife/hass-medreminder/blob/main/README.de.md)
 
@@ -36,7 +36,7 @@ before it lands, but this is worth knowing when you judge how much to trust the
 code — please read it yourself before running it on an instance you care about,
 and see the caution above regarding real medication.
 
-## Implemented features (v0.9.5)
+## Implemented features (v0.10.0)
 
 - Medication records with manufacturer, barcode/product code, strength, dosage
   form, stock unit, warning threshold, and notes; creating one immediately opens
@@ -95,8 +95,35 @@ and see the caution above regarding real medication.
    **Medication Reminder**, and add it once.
 5. Open **Medications** in the sidebar.
 
-Alternatively, copy `custom_components/medication_reminder` to the same path in
+Alternatively, copy `custom_components/medreminder` to the same path in
 your Home Assistant configuration and restart Home Assistant.
+
+### Upgrading from 0.9 or earlier
+
+Version 0.10 renamed the integration domain from `medication_reminder` to
+`medreminder`, because another integration in the HACS catalog already uses the
+old one. Your data, entities, devices and label printing options are moved over
+automatically, and the entity ids stay the same, so dashboards and history keep
+working:
+
+1. Update **Medication Reminder** in HACS and restart Home Assistant.
+2. Go to **Settings → Devices & services → Add integration** and add
+   **Medication Reminder** again. Do not remove the old entry first; setting up
+   the new one moves it over and removes it. If the list shows the name twice,
+   the old copy answers with "already configured", so pick the other one.
+3. If Home Assistant then reports under **Settings → Repairs** that the previous
+   copy is still installed, delete `custom_components/medication_reminder` and
+   restart once more.
+4. Update automations and scripts: actions are now called `medreminder.*`
+   instead of `medication_reminder.*`, events `medreminder_*` instead of
+   `medication_reminder_*`, and the panel lives at `/medreminder`.
+5. Change the card type in your dashboards from
+   `custom:medreminder-card` to `custom:medreminder-card`. Cards with
+   the old type keep working for now, and opening one in the card editor and
+   saving it switches it over. If you once added the card by hand under
+   **Resources**, remove that entry: the integration loads the card by itself.
+
+Backups made with an earlier version can still be restored.
 
 Action buttons require a notification service that supports Home Assistant
 actions, such as a Companion App `notify.mobile_app_*` service. Other notification
@@ -136,28 +163,28 @@ package in the panel also removes its device and entities from the registries.
 
 Actions:
 
-- `medication_reminder.record_intake`
-- `medication_reminder.record_unplanned_intake`
-- `medication_reminder.schedule_intake`
-- `medication_reminder.cancel_intake`
-- `medication_reminder.skip_intake`
-- `medication_reminder.snooze`
-- `medication_reminder.postpone_interval`
-- `medication_reminder.add_package`
-- `medication_reminder.delete_all_data` (requires `confirmation: DELETE`)
+- `medreminder.record_intake`
+- `medreminder.record_unplanned_intake`
+- `medreminder.schedule_intake`
+- `medreminder.cancel_intake`
+- `medreminder.skip_intake`
+- `medreminder.snooze`
+- `medreminder.postpone_interval`
+- `medreminder.add_package`
+- `medreminder.delete_all_data` (requires `confirmation: DELETE`)
 
 Events:
 
-- `medication_reminder_due`
-- `medication_reminder_taken`
-- `medication_reminder_skipped`
-- `medication_reminder_missed`
-- `medication_reminder_low_stock`
-- `medication_reminder_postponed`
+- `medreminder_due`
+- `medreminder_taken`
+- `medreminder_skipped`
+- `medreminder_missed`
+- `medreminder_low_stock`
+- `medreminder_postponed`
 
 ## One-off intakes from automations
 
-`medication_reminder.schedule_intake` plans a single intake that does not belong
+`medreminder.schedule_intake` plans a single intake that does not belong
 to a repeating plan, so an automation can react to something that happened:
 
 ```yaml
@@ -169,7 +196,7 @@ automation:
         zone: zone.gym
         event: leave
     actions:
-      - action: medication_reminder.schedule_intake
+      - action: medreminder.schedule_intake
         data:
           items:
             - medication: Magnesium
@@ -212,7 +239,7 @@ and `auto_miss_after_minutes` work exactly like the settings of a repeating plan
 The action returns the created intake, so a following step can use it:
 
 ```yaml
-      - action: medication_reminder.schedule_intake
+      - action: medreminder.schedule_intake
         response_variable: planned
         data:
           items:
@@ -224,25 +251,25 @@ The action returns the created intake, so a following step can use it:
           message: "Magnesium planned for {{ planned.scheduled_at }}"
 ```
 
-`medication_reminder.cancel_intake` removes a planned one-off intake again, by
+`medreminder.cancel_intake` removes a planned one-off intake again, by
 `occurrence_id` or by `reference`. It only touches one-off intakes that are still
 open and untouched, and it writes nothing to the history, so a cancelled plan
 does not count as skipped:
 
 ```yaml
-      - action: medication_reminder.cancel_intake
+      - action: medreminder.cancel_intake
         data:
           reference: "gym-{{ now().date() }}"
 ```
 
 ## Lovelace card
 
-The integration registers `custom:medication-reminder-card` automatically, so no
+The integration registers `custom:medreminder-card` automatically, so no
 Lovelace resource has to be added by hand. Add it from the card picker
 (**Medication Reminder**) or in YAML:
 
 ```yaml
-type: custom:medication-reminder-card
+type: custom:medreminder-card
 title: Medication
 mode: due
 max: 5
@@ -283,7 +310,7 @@ after Home Assistant has loaded the new files. In order:
    code and registers the previous module URL with it. Only a restart loads the
    new files.
 2. **Check that the file is served.** Open
-   `/medication_reminder_frontend/medication-reminder-card.js` on your Home
+   `/medreminder_frontend/medreminder-card.js` on your Home
    Assistant host. A 404 means the update did not reach the `custom_components`
    directory; anything else means the file is there.
 3. **Reload the browser without its cache** (Ctrl+Shift+R, or clear the app
@@ -295,7 +322,7 @@ after Home Assistant has loaded the new files. In order:
 
 As a fallback the module can also be added by hand under **Settings →
 Dashboards → three-dot menu → Resources**, as a JavaScript module with the URL
-`/medication_reminder_frontend/medication-reminder-card.js`.
+`/medreminder_frontend/medreminder-card.js`.
 
 ## Printing labels
 
@@ -325,7 +352,7 @@ the medication name or a package nickname:
   "template": "qr_nickname",
   "data": { "code": "med23456", "name": "Magnesium" },
   "copies": 1,
-  "job_id": "medication_reminder_1f3c9a2b4d5e"
+  "job_id": "medreminder_1f3c9a2b4d5e"
 }
 ```
 
@@ -359,7 +386,7 @@ data. Download the current backup first if you may need to return to it.
 
 ## Storage and behavior
 
-All data remains in Home Assistant under `.storage/medication_reminder.data`.
+All data remains in Home Assistant under `.storage/medreminder.data`.
 After a restart, missed scheduled times are reconstructed for up to 30 days.
 Intake recording is idempotent: using an old completed notification action again
 does not deduct stock twice. The latest 2,000 closed occurrences are retained,
@@ -388,7 +415,7 @@ Home Assistant action.
 
 The storage schema is versioned. Legacy manual stock is converted into a physical
 `Legacy` package, and stock is always recalculated from package remainders. This
-project is still pre-1.0: back up `.storage/medication_reminder.data` before
+project is still pre-1.0: back up `.storage/medreminder.data` before
 upgrading because the storage compatibility contract is not considered final until
 version 1.0.
 

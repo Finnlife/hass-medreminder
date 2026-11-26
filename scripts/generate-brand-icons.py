@@ -18,7 +18,7 @@ from PIL import Image
 COMPONENT = (
     pathlib.Path(__file__).resolve().parents[1]
     / "custom_components"
-    / "medication_reminder"
+    / "medreminder"
 )
 SOURCE = COMPONENT / "frontend" / "logo.png"
 BRAND = COMPONENT / "brand"
