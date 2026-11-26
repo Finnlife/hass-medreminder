@@ -41,7 +41,7 @@ sehr man diesem Code vertrauen sollte — lies ihn selbst, bevor du ihn auf eine
 Instanz laufen lässt, die dir wichtig ist, und beachte den Warnhinweis oben zu
 echten Medikamenten.
 
-## Implementierte Funktionen (v0.10.0)
+## Implementierte Funktionen (v0.10.1)
 
 - Medikamentenstammdaten mit Hersteller, Barcode/Produktcode, Stärke,
   Darreichungsform, Bestandseinheit, Warnschwelle und Notizen; nach dem Anlegen
@@ -111,23 +111,25 @@ der Home-Assistant-Konfiguration kopieren und Home Assistant neu starten.
 
 Mit Version 0.10 heißt die Integrations-Domain `medreminder` statt
 `medication_reminder`, weil eine andere Integration im HACS-Katalog den alten
-Namen bereits nutzt. Daten, Entitäten, Geräte und Druckeinstellungen werden
-automatisch übernommen, und die Entity-IDs bleiben gleich, Dashboards und
-Verlauf funktionieren also weiter:
+Namen bereits nutzt. Daten, Entitäten, Geräte und Druckeinstellungen lassen
+sich übernehmen, und die Entity-IDs bleiben gleich, Dashboards und Verlauf
+funktionieren also weiter:
 
 1. **Medication Reminder** in HACS aktualisieren und Home Assistant neu starten.
 2. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen**
    **Medication Reminder** erneut hinzufügen. Den alten Eintrag vorher nicht
-   löschen; das Einrichten der neuen Integration übernimmt ihn und entfernt ihn
-   danach. Steht der Name doppelt in der Liste, meldet die alte Kopie „bereits
-   eingerichtet“, dann einfach den anderen Eintrag wählen.
+   löschen. Die Einrichtung zeigt die gefundene alte Installation und fragt, ob
+   sie übernommen werden soll: **Übernehmen und alten Eintrag entfernen**
+   wählen. Erst dann wird sie umgezogen und entfernt; **Leer starten** lässt sie
+   unangetastet. Steht der Name doppelt in der Liste, meldet die alte Kopie
+   „bereits eingerichtet“, dann einfach den anderen Eintrag wählen.
 3. Meldet Home Assistant danach unter **Einstellungen → Reparaturen**, dass die
    alte Kopie noch installiert ist, `custom_components/medication_reminder`
    löschen und Home Assistant noch einmal neu starten.
 4. Automatisierungen und Skripte anpassen: Aktionen heißen jetzt
    `medreminder.*` statt `medication_reminder.*`, Events `medreminder_*` statt
    `medication_reminder_*`, und das Panel liegt unter `/medreminder`.
-5. In den Dashboards den Kartentyp von `custom:medreminder-card` auf
+5. In den Dashboards den Kartentyp von `custom:medication-reminder-card` auf
    `custom:medreminder-card` ändern. Karten mit dem alten Typ funktionieren
    vorerst weiter, und wer so eine Karte im Karteneditor öffnet und speichert,
    stellt sie automatisch um. Falls du die Karte früher von Hand unter

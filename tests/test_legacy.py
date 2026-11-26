@@ -119,15 +119,17 @@ class IdentifierTests(unittest.TestCase):
 
 
 class OwnershipTests(unittest.TestCase):
-    def test_an_entry_of_the_other_integration_is_not_ours(self) -> None:
-        other = types.SimpleNamespace(entry_id="b", data={"patient": "Alex"})
-        self.assertFalse(legacy.is_own_entry(other, set()))
-
-    def test_our_entry_is_recognised(self) -> None:
-        ours = types.SimpleNamespace(entry_id="a", data={})
-        self.assertTrue(legacy.is_own_entry(ours, set()))
-        with_data = types.SimpleNamespace(entry_id="a", data={"x": 1})
-        self.assertTrue(legacy.is_own_entry(with_data, {"a"}))
+    def test_only_the_hub_of_an_earlier_version_counts(self) -> None:
+        hub = _device(("medication_reminder", "medication_reminder"))
+        self.assertTrue(legacy.is_own_hub(hub))
+        for device in (
+            _device(("medication_reminder", "01FOREIGN")),
+            _device(("medication_reminder", "medication_reminder"), manufacturer="X"),
+            _device(("medication_reminder", "medication_reminder"), model="Other"),
+            _device(("medreminder", "medreminder")),
+        ):
+            with self.subTest(device=device):
+                self.assertFalse(legacy.is_own_hub(device))
 
     def test_only_our_data_shape_is_taken_over(self) -> None:
         self.assertTrue(legacy.is_own_data(_own_document()["data"]))
@@ -273,6 +275,119 @@ class EntrySettingsTests(unittest.TestCase):
         old = types.SimpleNamespace(title="Medication schedule", options={"copies": 3})
         new = types.SimpleNamespace(title="Medication schedule", options={"copies": 1})
         self.assertEqual([], self._take_over(old, new))
+
+
+def _device(identifier, manufacturer="Medication Reminder", model="Local management"):
+    return types.SimpleNamespace(
+        identifiers={identifier}, manufacturer=manufacturer, model=model
+    )
+
+
+class _ConfigEntries:
+    def __init__(self, entries) -> None:
+        self.entries = entries
+        self.removed = []
+        self.unloaded = []
+        self.updates = []
+
+    def async_entries(self, domain):
+        return [entry for entry in self.entries if entry.domain == domain]
+
+    async def async_unload(self, entry_id) -> None:
+        self.unloaded.append(entry_id)
+
+    async def async_remove(self, entry_id) -> None:
+        self.removed.append(entry_id)
+
+    def async_update_entry(self, entry, **changes) -> None:
+        self.updates.append((entry.entry_id, changes))
+
+
+class TakeOverTests(unittest.IsolatedAsyncioTestCase):
+    """Only entries the user confirmed and that carry our hub are moved."""
+
+    def setUp(self) -> None:
+        state = types.SimpleNamespace(LOADED="loaded")
+        self.ours = types.SimpleNamespace(
+            entry_id="ours",
+            domain="medication_reminder",
+            data={},
+            state=state.LOADED,
+            title="Medication schedule",
+            options={},
+        )
+        # The other integration, with an empty entry as the worst case.
+        self.other = types.SimpleNamespace(
+            entry_id="other",
+            domain="medication_reminder",
+            data={},
+            state=state.LOADED,
+            title="Alex",
+            options={},
+        )
+        devices = {
+            "ours": [_device(("medication_reminder", "medication_reminder"))],
+            "other": [_device(("medication_reminder", "other"), "Other", "Patient")],
+        }
+        self.config_entries = _ConfigEntries([self.ours, self.other])
+        self.hass = types.SimpleNamespace(config_entries=self.config_entries)
+        self.moved = []
+        dr = types.SimpleNamespace(
+            async_get=lambda _hass: devices,
+            async_entries_for_config_entry=lambda reg, entry_id: reg.get(entry_id, []),
+        )
+        self.patches = [
+            mock.patch.object(legacy, "dr", dr),
+            mock.patch.object(
+                legacy,
+                "ConfigEntryState",
+                types.SimpleNamespace(LOADED=state.LOADED),
+            ),
+            mock.patch.object(legacy, "_BUSY_STATES", ()),
+            mock.patch.object(
+                legacy, "async_copy_legacy_storage", mock.AsyncMock(return_value=True)
+            ),
+            mock.patch.object(
+                legacy,
+                "_move_registry_entries",
+                lambda _hass, old, new: self.moved.append((old, new)),
+            ),
+            mock.patch.object(legacy, "_take_over_entry_settings", lambda *args: None),
+        ]
+        for patch in self.patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def _new_entry(self, data):
+        return types.SimpleNamespace(entry_id="new", data=data)
+
+    async def test_nothing_moves_without_confirmation(self) -> None:
+        await legacy.async_migrate_legacy_install(self.hass, self._new_entry({}))
+        self.assertEqual([], self.moved)
+        self.assertEqual([], self.config_entries.removed)
+        self.assertEqual([], self.config_entries.unloaded)
+        legacy.async_copy_legacy_storage.assert_not_awaited()
+
+    def test_only_entries_with_our_hub_are_offered(self) -> None:
+        self.assertEqual([self.ours], legacy.async_own_legacy_entries(self.hass))
+
+    async def test_a_confirmed_entry_without_our_hub_is_left_alone(self) -> None:
+        entry = self._new_entry({legacy.CONF_TAKE_OVER: ["other"]})
+        await legacy.async_migrate_legacy_install(self.hass, entry)
+        self.assertEqual([], self.moved)
+        self.assertEqual([], self.config_entries.removed)
+        self.assertEqual([], self.config_entries.unloaded)
+        legacy.async_copy_legacy_storage.assert_not_awaited()
+        self.assertEqual([("new", {"data": {}})], self.config_entries.updates)
+
+    async def test_the_confirmed_install_moves_over_once(self) -> None:
+        entry = self._new_entry({legacy.CONF_TAKE_OVER: ["ours"]})
+        await legacy.async_migrate_legacy_install(self.hass, entry)
+        self.assertEqual([("ours", "new")], self.moved)
+        self.assertEqual(["ours"], self.config_entries.unloaded)
+        self.assertEqual(["ours"], self.config_entries.removed)
+        # The confirmation is used up, so nothing moves on the next start.
+        self.assertEqual([("new", {"data": {}})], self.config_entries.updates)
 
 
 if __name__ == "__main__":

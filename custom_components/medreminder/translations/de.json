@@ -5,10 +5,19 @@
       "user": {
         "title": "Medikamentenplan einrichten",
         "description": "Erstellt die lokale Medikamentenverwaltung und den Sidebar-Eintrag. Alle Daten bleiben in Home Assistant."
+      },
+      "take_over": {
+        "title": "Vorherige Installation gefunden",
+        "description": "Medication Reminder heißt jetzt `medreminder` statt `medication_reminder`. Es wurde eine Installation aus einer früheren Version gefunden: **{title}** mit {devices} Geräten und {entities} Entitäten.\n\nBeim Übernehmen ziehen Medikamente, Pläne, Verlauf, Entitäten und Geräte mit ihren Entity-IDs in diese Integration um, danach wird der alte Eintrag entfernt. Sonst wird nichts verändert.",
+        "menu_options": {
+          "take_over_confirm": "Übernehmen und alten Eintrag entfernen",
+          "start_empty": "Leer starten und alten Eintrag nicht anfassen"
+        }
       }
     },
     "abort": {
-      "already_configured": "Die Medikamenten-Erinnerung ist bereits eingerichtet."
+      "already_configured": "Die Medikamenten-Erinnerung ist bereits eingerichtet.",
+      "legacy_gone": "Die vorherige Installation ist nicht mehr vorhanden. Bitte die Einrichtung neu starten."
     }
   },
   "device": {
@@ -267,7 +276,7 @@
   "issues": {
     "legacy_folder": {
       "title": "Die alte Kopie von Medication Reminder ist noch installiert",
-      "description": "Medication Reminder heißt jetzt `medreminder` statt `medication_reminder`, und deine Daten wurden übernommen. Die alte Kopie liegt noch in `{path}`. Lösche diesen Ordner und starte Home Assistant neu, sonst bietet Home Assistant sie weiter als zweite Integration gleichen Namens an."
+      "description": "Medication Reminder heißt jetzt `medreminder` statt `medication_reminder`, und kein Eintrag nutzt die alte Kopie mehr. Sie liegt noch in `{path}`. Lösche diesen Ordner und starte Home Assistant neu, sonst bietet Home Assistant sie weiter als zweite Integration gleichen Namens an."
     }
   }
 }

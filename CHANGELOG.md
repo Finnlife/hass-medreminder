@@ -9,6 +9,24 @@ Entries are grouped as **Added**, **Changed**, **Fixed**, **Removed** and
 project is still pre-1.0: the storage compatibility contract is not final until
 version 1.0.
 
+## 0.10.1
+
+### Changed
+
+- Moving an install over from before the domain rename is an explicit,
+  confirmed step. Setting up the integration lists the previous install with
+  its devices and entities and asks whether to take it over or to start empty;
+  nothing is moved or removed unless it is taken over.
+- Only an entry carrying the hub device of an earlier version is offered: its
+  identifier, manufacturer and model all have to match. Entries of the other
+  integration that uses the old domain are never offered, whatever they store.
+- The repair issue about the previous copy only appears once no entry uses it
+  anymore.
+
+### Fixed
+
+- The upgrade steps in the readme name the old card type correctly.
+
 ## 0.10.0
 
 The integration domain changed from `medication_reminder` to `medreminder`.

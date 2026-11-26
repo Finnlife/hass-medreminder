@@ -22,6 +22,13 @@ from .const import (
     OPTION_PRINTING_ENABLED,
     OPTION_TEMPLATE,
 )
+from .legacy import (
+    CONF_TAKE_OVER,
+    async_describe_legacy_entries,
+    async_own_legacy_entries,
+)
+
+DEFAULT_TITLE = "Medication schedule"
 
 OPTIONS_SCHEMA = vol.Schema(
     {
@@ -51,9 +58,50 @@ class MedicationReminderConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle setup from the integrations page."""
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
+        if async_own_legacy_entries(self.hass):
+            return await self.async_step_take_over()
         if user_input is not None:
-            return self.async_create_entry(title="Medication schedule", data={})
+            return self.async_create_entry(title=DEFAULT_TITLE, data={})
         return self.async_show_form(step_id="user")
+
+    async def async_step_take_over(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Ask whether an install from before the domain rename moves over.
+
+        Only entries carrying this integration's own hub device are offered,
+        and nothing is moved or removed unless the user picks that here.
+        """
+        legacy = async_own_legacy_entries(self.hass)
+        # Exactly what is shown here is what a confirmation moves over.
+        self._offered = [entry.entry_id for entry in legacy]
+        return self.async_show_menu(
+            step_id="take_over",
+            menu_options=["take_over_confirm", "start_empty"],
+            description_placeholders=async_describe_legacy_entries(self.hass, legacy),
+        )
+
+    async def async_step_take_over_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Set up and move the confirmed entries over on the first start."""
+        still_there = {entry.entry_id for entry in async_own_legacy_entries(self.hass)}
+        confirmed = [
+            entry_id
+            for entry_id in getattr(self, "_offered", [])
+            if entry_id in still_there
+        ]
+        if not confirmed:
+            return self.async_abort(reason="legacy_gone")
+        return self.async_create_entry(
+            title=DEFAULT_TITLE, data={CONF_TAKE_OVER: confirmed}
+        )
+
+    async def async_step_start_empty(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Set up without data and leave the old entries alone."""
+        return self.async_create_entry(title=DEFAULT_TITLE, data={})
 
     @staticmethod
     @callback

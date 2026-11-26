@@ -5,10 +5,19 @@
       "user": {
         "title": "Set up medication schedule",
         "description": "Creates local medication management and the sidebar entry. All data remains in Home Assistant."
+      },
+      "take_over": {
+        "title": "Previous install found",
+        "description": "Medication Reminder was renamed from `medication_reminder` to `medreminder`. An install from an earlier version was found: **{title}** with {devices} devices and {entities} entities.\n\nTaking it over moves its medications, plans, history, entities and devices with their entity ids to this integration and then removes the old entry. Nothing else is changed.",
+        "menu_options": {
+          "take_over_confirm": "Take over and remove the old entry",
+          "start_empty": "Start empty and leave the old entry untouched"
+        }
       }
     },
     "abort": {
-      "already_configured": "Medication Reminder is already configured."
+      "already_configured": "Medication Reminder is already configured.",
+      "legacy_gone": "The previous install is no longer there. Start the setup again."
     }
   },
   "device": {
@@ -267,7 +276,7 @@
   "issues": {
     "legacy_folder": {
       "title": "The previous copy of Medication Reminder is still installed",
-      "description": "Medication Reminder was renamed from `medication_reminder` to `medreminder`, and your data was moved over. The previous copy is still in `{path}`. Delete that folder and restart Home Assistant, otherwise Home Assistant keeps offering it as a second integration of the same name."
+      "description": "Medication Reminder was renamed from `medication_reminder` to `medreminder`, and no entry uses the previous copy anymore. It is still in `{path}`. Delete that folder and restart Home Assistant, otherwise Home Assistant keeps offering it as a second integration of the same name."
     }
   }
 }

@@ -36,7 +36,7 @@ before it lands, but this is worth knowing when you judge how much to trust the
 code — please read it yourself before running it on an instance you care about,
 and see the caution above regarding real medication.
 
-## Implemented features (v0.10.0)
+## Implemented features (v0.10.1)
 
 - Medication records with manufacturer, barcode/product code, strength, dosage
   form, stock unit, warning threshold, and notes; creating one immediately opens
@@ -102,15 +102,17 @@ your Home Assistant configuration and restart Home Assistant.
 
 Version 0.10 renamed the integration domain from `medication_reminder` to
 `medreminder`, because another integration in the HACS catalog already uses the
-old one. Your data, entities, devices and label printing options are moved over
-automatically, and the entity ids stay the same, so dashboards and history keep
-working:
+old one. Your data, entities, devices and label printing options can be moved
+over, and the entity ids stay the same, so dashboards and history keep working:
 
 1. Update **Medication Reminder** in HACS and restart Home Assistant.
 2. Go to **Settings → Devices & services → Add integration** and add
-   **Medication Reminder** again. Do not remove the old entry first; setting up
-   the new one moves it over and removes it. If the list shows the name twice,
-   the old copy answers with "already configured", so pick the other one.
+   **Medication Reminder** again. Do not remove the old entry first. The setup
+   shows the previous install it found and asks whether to take it over: pick
+   **Take over and remove the old entry**. Only then is it moved over and
+   removed; **Start empty** leaves it untouched. If the list shows the name
+   twice, the old copy answers with "already configured", so pick the other
+   one.
 3. If Home Assistant then reports under **Settings → Repairs** that the previous
    copy is still installed, delete `custom_components/medication_reminder` and
    restart once more.
@@ -118,7 +120,7 @@ working:
    instead of `medication_reminder.*`, events `medreminder_*` instead of
    `medication_reminder_*`, and the panel lives at `/medreminder`.
 5. Change the card type in your dashboards from
-   `custom:medreminder-card` to `custom:medreminder-card`. Cards with
+   `custom:medication-reminder-card` to `custom:medreminder-card`. Cards with
    the old type keep working for now, and opening one in the card editor and
    saving it switches it over. If you once added the card by hand under
    **Resources**, remove that entry: the integration loads the card by itself.

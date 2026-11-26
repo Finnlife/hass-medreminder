@@ -2,13 +2,15 @@
 
 Up to version 0.9 the integration used the domain ``medication_reminder``. That
 domain belongs to another integration in the HACS catalog, so it was renamed to
-``medreminder``. An install from before the rename is moved over once, the first
-time the new integration is set up: the stored data, and the entities and
-devices with their ids, so dashboards, automations and history keep working.
+``medreminder``. An install from before the rename can be moved over once: the
+stored data, and the entities and devices with their ids, so dashboards,
+automations and history keep working.
 
-Entries of the other integration share the old domain. They are recognised and
-never touched: that integration stores a patient in every entry, while this one
-stored nothing and kept a hub device of its own.
+Nothing is moved without being asked. Setting up the integration lists the old
+entries that carry this integration's own hub device, and only an entry the
+user confirms there is moved over and removed. Entries of the other
+integration share the old domain but never carry that hub device, so they are
+left alone.
 """
 
 from __future__ import annotations
@@ -39,6 +41,11 @@ MIGRATED_SUFFIX = ".migrated"
 REPOSITORY = "Finnlife/hass-medreminder"
 LEGACY_FOLDER_ISSUE = "legacy_folder"
 STORE_COLLECTIONS = ("medications", "packages", "regimens", "occurrences")
+# Entry data key holding the old entries the user confirmed to move over.
+CONF_TAKE_OVER = "take_over_entry_ids"
+# The hub device every earlier version created, unchanged since the first one.
+HUB_MANUFACTURER = "Medication Reminder"
+HUB_MODEL = "Local management"
 
 # Since Home Assistant 2026.11 a device belongs to one config entry and moves in
 # one step; earlier versions add the new entry and drop the old one.
@@ -51,9 +58,71 @@ MOVE_DEVICE_WITH_NEW_ENTRY = (
 _BUSY_STATES = (ConfigEntryState.SETUP_IN_PROGRESS, ConfigEntryState.SETUP_RETRY)
 
 
+def is_own_hub(device: Any) -> bool:
+    """Return whether a device is the hub device of an earlier version."""
+    return (
+        (LEGACY_DOMAIN, LEGACY_DOMAIN) in device.identifiers
+        and device.manufacturer == HUB_MANUFACTURER
+        and device.model == HUB_MODEL
+    )
+
+
+@callback
+def async_own_legacy_entries(hass: HomeAssistant) -> list[ConfigEntry]:
+    """Return the entries of the old domain that carry this integration's hub."""
+    devices = dr.async_get(hass)
+    return [
+        entry
+        for entry in hass.config_entries.async_entries(LEGACY_DOMAIN)
+        if any(
+            is_own_hub(device)
+            for device in dr.async_entries_for_config_entry(devices, entry.entry_id)
+        )
+    ]
+
+
+@callback
+def async_describe_legacy_entries(
+    hass: HomeAssistant, entries: list[ConfigEntry]
+) -> dict[str, str]:
+    """Return what the setup shows about the old entries it offers to move."""
+    devices = dr.async_get(hass)
+    entities = er.async_get(hass)
+    return {
+        "title": ", ".join(entry.title for entry in entries),
+        "devices": str(
+            sum(
+                len(dr.async_entries_for_config_entry(devices, entry.entry_id))
+                for entry in entries
+            )
+        ),
+        "entities": str(
+            sum(
+                len(er.async_entries_for_config_entry(entities, entry.entry_id))
+                for entry in entries
+            )
+        ),
+    }
+
+
 async def async_migrate_legacy_install(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Move an install of the old domain over to ``entry``, once."""
-    legacy_entries = _legacy_entries(hass)
+    """Move the old entries the user confirmed over to ``entry``, once.
+
+    Each confirmed entry is checked for the hub device again; one that does not
+    carry it is left alone.
+    """
+    confirmed = list(entry.data.get(CONF_TAKE_OVER, []))
+    if not confirmed:
+        return
+    own = {old.entry_id: old for old in async_own_legacy_entries(hass)}
+    legacy_entries = [own[entry_id] for entry_id in confirmed if entry_id in own]
+    for entry_id in confirmed:
+        if entry_id not in own:
+            _LOGGER.warning(
+                "Entry %s is not a previous Medication Reminder install (anymore); "
+                "it was left alone",
+                entry_id,
+            )
     if any(old.state in _BUSY_STATES for old in legacy_entries):
         _LOGGER.warning(
             "The previous Medication Reminder install is still starting; "
@@ -66,10 +135,10 @@ async def async_migrate_legacy_install(hass: HomeAssistant, entry: ConfigEntry) 
             # only change integration while nothing has them loaded.
             await hass.config_entries.async_unload(old.entry_id)
 
-    copied = await async_copy_legacy_storage(hass)
-    if copied:
+    if legacy_entries and await async_copy_legacy_storage(hass):
         _LOGGER.info("Moved the stored data over from %s", LEGACY_STORAGE_KEY)
 
+    pending: list[str] = []
     for old in legacy_entries:
         try:
             _move_registry_entries(hass, old.entry_id, entry.entry_id)
@@ -82,12 +151,18 @@ async def async_migrate_legacy_install(hass: HomeAssistant, entry: ConfigEntry) 
                 old.entry_id,
                 err,
             )
+            pending.append(old.entry_id)
             continue
         _take_over_entry_settings(hass, old, entry)
         await hass.config_entries.async_remove(old.entry_id)
         _LOGGER.info(
             "Moved the previous Medication Reminder install (%s) over", old.entry_id
         )
+    # Done with everything confirmed, except what has to be tried again.
+    data = {key: value for key, value in entry.data.items() if key != CONF_TAKE_OVER}
+    if pending:
+        data[CONF_TAKE_OVER] = pending
+    hass.config_entries.async_update_entry(entry, data=data)
 
 
 async def async_copy_legacy_storage(hass: HomeAssistant) -> bool:
@@ -136,29 +211,6 @@ def is_own_data(data: Any) -> bool:
     return isinstance(data, dict) and all(
         isinstance(data.get(collection), list) for collection in STORE_COLLECTIONS
     )
-
-
-def is_own_entry(entry: ConfigEntry, hub_entry_ids: set[str]) -> bool:
-    """Return whether an entry of the old domain belongs to this integration."""
-    return entry.entry_id in hub_entry_ids or not entry.data
-
-
-@callback
-def _legacy_entries(hass: HomeAssistant) -> list[ConfigEntry]:
-    devices = dr.async_get(hass)
-    hub_entry_ids = {
-        entry.entry_id
-        for entry in hass.config_entries.async_entries(LEGACY_DOMAIN)
-        if any(
-            (LEGACY_DOMAIN, LEGACY_DOMAIN) in device.identifiers
-            for device in dr.async_entries_for_config_entry(devices, entry.entry_id)
-        )
-    }
-    return [
-        entry
-        for entry in hass.config_entries.async_entries(LEGACY_DOMAIN)
-        if is_own_entry(entry, hub_entry_ids)
-    ]
 
 
 @callback
@@ -257,9 +309,15 @@ def _drop_placeholder_state(
 
 
 async def async_check_legacy_folder(hass: HomeAssistant) -> None:
-    """Raise a repair issue while the old copy of this integration is on disk."""
+    """Raise a repair issue while the old copy of this integration is on disk.
+
+    Only once no entry of the earlier version is left: as long as the user keeps
+    one, the old copy is still in use.
+    """
     folder = Path(hass.config.path("custom_components", LEGACY_DOMAIN))
-    if await hass.async_add_executor_job(_is_own_legacy_folder, folder):
+    if not async_own_legacy_entries(hass) and await hass.async_add_executor_job(
+        _is_own_legacy_folder, folder
+    ):
         ir.async_create_issue(
             hass,
             DOMAIN,
